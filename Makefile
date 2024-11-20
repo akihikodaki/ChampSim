@@ -1,6 +1,6 @@
 ROOT_DIR = $(patsubst %/,%,$(dir $(abspath $(firstword $(MAKEFILE_LIST)))))
 
-CPPFLAGS += -MMD -I$(ROOT_DIR)/inc
+CPPFLAGS += -MMD -I$(ROOT_DIR)/inc -I$(ROOT_DIR)/riscv-unified-db/gen/champsim
 CXXFLAGS += --std=c++17 -O3 -Wall -Wextra -Wshadow -Wpedantic
 
 # vcpkg integration
@@ -45,8 +45,11 @@ $(filter-out test, $(sort $(build_dirs) $(module_dirs))): | $(dir $@)
 	-mkdir $@
 
 # All .o files should be made like .cc files
-$(build_objs) $(module_objs):
+$(build_objs) $(module_objs): | $(ROOT_DIR)/riscv-unified-db/gen/champsim/riscv.h
 	$(COMPILE.cc) $(OUTPUT_OPTION) $<
+
+$(ROOT_DIR)/riscv-unified-db/%: $(ROOT_DIR)/riscv-unified-db/do
+	$< $@
 
 # Add address sanitizers for tests
 #$(test_main_name): CXXFLAGS += -fsanitize=address -fno-omit-frame-pointer

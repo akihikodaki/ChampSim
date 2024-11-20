@@ -1,3 +1,6 @@
 [submodule "vcpkg"]
 	path = vcpkg
 	url = https://github.com/Microsoft/vcpkg.git
+[submodule "riscv-unified-db"]
+	path = riscv-unified-db
+	url = ../riscv-unified-db.git

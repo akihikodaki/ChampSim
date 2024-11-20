@@ -38,6 +38,7 @@
 #include "instruction.h"
 #include "module_impl.h"
 #include "operable.h"
+#include "prefetch.h"
 #include "util/lru_table.h"
 #include <type_traits>
 
@@ -79,6 +80,10 @@ struct LSQ_ENTRY {
   uint64_t virtual_address = 0;
   uint64_t ip = 0;
   uint64_t event_cycle = 0;
+  
+  // IDM
+  uint64_t wdata = 0;
+  uint8_t size = 0;
 
   std::array<uint8_t, 2> asid = {std::numeric_limits<uint8_t>::max(), std::numeric_limits<uint8_t>::max()};
   bool fetch_issued = false;
@@ -143,6 +148,9 @@ public:
 
   // branch
   uint64_t fetch_resume_cycle = 0;
+
+  // Performance Counters
+  uint64_t idm_double_stride = 0; // load which both sources are dependent on stride/pt chain
 
   const long IN_QUEUE_SIZE = 2 * FETCH_WIDTH;
   std::deque<ooo_model_instr> input_queue;

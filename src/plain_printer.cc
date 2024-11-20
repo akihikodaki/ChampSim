@@ -25,10 +25,10 @@
 
 void champsim::plain_printer::print(O3_CPU::stats_type stats)
 {
-  constexpr std::array<std::pair<std::string_view, std::size_t>, 6> types{
+  constexpr std::array<std::pair<std::string_view, std::size_t>, 7> types{
       {std::pair{"BRANCH_DIRECT_JUMP", BRANCH_DIRECT_JUMP}, std::pair{"BRANCH_INDIRECT", BRANCH_INDIRECT}, std::pair{"BRANCH_CONDITIONAL", BRANCH_CONDITIONAL},
        std::pair{"BRANCH_DIRECT_CALL", BRANCH_DIRECT_CALL}, std::pair{"BRANCH_INDIRECT_CALL", BRANCH_INDIRECT_CALL},
-       std::pair{"BRANCH_RETURN", BRANCH_RETURN}}};
+       std::pair{"BRANCH_RETURN", BRANCH_RETURN}, std::pair{"BRANCH_YIELD", BRANCH_YIELD}}};
 
   auto total_branch = std::ceil(
       std::accumulate(std::begin(types), std::end(types), 0ll, [tbt = stats.total_branch_types](auto acc, auto next) { return acc + tbt[next.second]; }));

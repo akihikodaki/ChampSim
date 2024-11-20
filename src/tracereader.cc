@@ -53,17 +53,24 @@ champsim::tracereader get_tracereader_for_type(std::string fname, uint8_t cpu)
 template <typename T, typename S>
 using repeatable_reader_t = champsim::repeatable<champsim::bulk_tracereader<T, S>, uint8_t, std::string>;
 
-champsim::tracereader get_tracereader(std::string fname, uint8_t cpu, bool is_cloudsuite, bool repeat)
+champsim::tracereader get_tracereader(std::string fname, uint8_t cpu, uint8_t trace_type, bool repeat)
 {
-  if (is_cloudsuite) {
+  if (trace_type == TRACE_TYPE_CLOUDSUITE) {
     if (repeat)
       return champsim::get_tracereader_for_type<repeatable_reader_t, cloudsuite_instr>(fname, cpu);
     else
       return champsim::get_tracereader_for_type<champsim::bulk_tracereader, cloudsuite_instr>(fname, cpu);
-  } else {
+  } else if (trace_type == TRACE_TYPE_X86) {
     if (repeat)
       return champsim::get_tracereader_for_type<repeatable_reader_t, input_instr>(fname, cpu);
     else
       return champsim::get_tracereader_for_type<champsim::bulk_tracereader, input_instr>(fname, cpu);
+  } else if (trace_type == TRACE_TYPE_RISCV) {
+    if (repeat)
+      return champsim::get_tracereader_for_type<repeatable_reader_t, riscv_instr>(fname, cpu);
+    else
+      return champsim::get_tracereader_for_type<champsim::bulk_tracereader, riscv_instr>(fname, cpu);
+  } else {
+    throw std::invalid_argument("Invalid trace type");
   }
 }

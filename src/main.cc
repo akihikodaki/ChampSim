@@ -29,9 +29,61 @@
 #include "vmem.h"
 #include <CLI/CLI.hpp>
 #include <fmt/core.h>
+#include "arch.h"
+#include "memory_data.h"
+#include "regfile.h"
+#include "prefetch.h"
+#include "instruction.h"
+
+uint64_t total_inst_num = 0;
+uint64_t total_load_num = 0;
+uint64_t decode_inst_num = 0;
+uint64_t decode_load_num = 0;
+uint64_t miss_load_num = 0;
+uint64_t miss_stride_num = 0;
+uint64_t miss_ima_num = 0;
+uint64_t miss_ima_complex_num = 0;
+uint64_t dct_hit_needbyload_num = 0;
+uint64_t dct_hit_same_src_num = 0;
+uint64_t dct_hit_num = 0;
+uint64_t dct_hit_useless_num = 0;
+// uint64_t dct_hit_no_depend_num = 0;
+// uint64_t miss_ima_single_num = 0;
+// uint64_t miss_ima_double_num = 0;
+uint64_t dma_consumer_num = 0;
+uint64_t dma_caught_num = 0;
+uint64_t dma_consumer_inst_num = 0;
+uint64_t dma_caught_inst_num = 0;
+
+uint64_t dct_search_num = 0;
+uint64_t dct_write_num = 0;
+
+uint64_t isq_search_num = 0;
+uint64_t isq_write_num = 0;
+
+std::unordered_map<uint64_t, load_info_t> pc_info;
+std::unordered_map<uint64_t, decode_load_info_t> decode_pc_info;
+std::unordered_map<uint64_t, uint64_t> ic_length_info;
+std::unordered_map<IDM_OP, uint64_t> ict_op_info;
+map<uint64_t, uint64_t> consumer_map;
+uint64_t total_exc_num = 0;
+
+uint64_t ima_pref_num = 0;
+uint64_t ima_pref_miss_num = 0;
+
+uint8_t regfile_load_type[64] = {};
+uint8_t regfile_op[64] = {};
+MEMORY_DATA mem_data[NUM_CPUS];
+REGFILE regfile[NUM_CPUS];
+extern AGQ agq[NUM_CPUS];
+extern DCT dct[NUM_CPUS];
+
+uint8_t trace_type = TRACE_TYPE_INVALID;
+bool compressed_memory = false;
 
 namespace champsim
 {
+Arch arch;
 std::vector<phase_stats> main(environment& env, std::vector<phase_info>& phases, std::vector<tracereader>& traces);
 }
 
@@ -42,6 +94,7 @@ int main(int argc, char** argv)
   CLI::App app{"A microarchitecture simulator for research and education"};
 
   bool knob_cloudsuite{false};
+  bool knob_riscv{false};
   uint64_t warmup_instructions = 0;
   uint64_t simulation_instructions = std::numeric_limits<uint64_t>::max();
   std::string json_file_name;
@@ -53,6 +106,7 @@ int main(int argc, char** argv)
   };
 
   app.add_flag("-c,--cloudsuite", knob_cloudsuite, "Read all traces using the cloudsuite format");
+  app.add_flag("-r,--riscv", knob_riscv, "Read all traces using the RISC-V format");
   app.add_flag("--hide-heartbeat", set_heartbeat_callback, "Hide the heartbeat output");
   auto warmup_instr_option = app.add_option("-w,--warmup-instructions", warmup_instructions, "The number of instructions in the warmup phase");
   auto deprec_warmup_instr_option =
@@ -81,10 +135,55 @@ int main(int argc, char** argv)
   if (simulation_given && !warmup_given)
     warmup_instructions = simulation_instructions * 2 / 10;
 
+  if (knob_cloudsuite && knob_riscv) {
+    fmt::print("Both CloudSuite and RISC-V formats are requested. Choose either of them.\n");
+    return 1;
+  }
+
+  if (knob_cloudsuite) {
+    trace_type = TRACE_TYPE_CLOUDSUITE;
+  } else if (knob_riscv) {
+    trace_type = TRACE_TYPE_RISCV;
+  } else {
+    trace_type = TRACE_TYPE_X86;
+  }
+
+  // Regfile & Memory initializaiton
+  if(trace_type==TRACE_TYPE_RISCV){
+    uint8_t i = 0;
+    for (auto& trace_name : trace_names) {
+      // Regfile
+      int pos = trace_name.find(".champsim.xz");
+      if(pos == -1){
+        pos = trace_name.find(".champsim.trace.xz");
+      }
+      if(pos == -1){
+        std::cout << "Trace Name Error!" << std::endl;
+      }
+      string prefix_name = trace_name.substr(0, pos);
+
+      regfile[i].set_init_fname(prefix_name + ".regfile.txt");
+      regfile[i].init();
+
+      // Memory
+      mem_data[i].set_init_fname(prefix_name + ".memory.bin", compressed_memory);
+      mem_data[i].init();
+      i++;
+    }
+
+    champsim::arch = { 2, UINT8_MAX, UINT8_MAX };
+  } else {
+    champsim::arch = {
+      champsim::REG_STACK_POINTER,
+      champsim::REG_FLAGS,
+      champsim::REG_INSTRUCTION_POINTER
+    };
+  }
+
   std::vector<champsim::tracereader> traces;
   std::transform(
       std::begin(trace_names), std::end(trace_names), std::back_inserter(traces),
-      [knob_cloudsuite, repeat = simulation_given, i = uint8_t(0)](auto name) mutable { return get_tracereader(name, i++, knob_cloudsuite, repeat); });
+      [repeat = simulation_given, i = uint8_t(0)](auto name) mutable { return get_tracereader(name, i++, trace_type, repeat); });
 
   std::vector<champsim::phase_info> phases{
       {champsim::phase_info{"Warmup", true, warmup_instructions, std::vector<std::size_t>(std::size(trace_names), 0), trace_names},

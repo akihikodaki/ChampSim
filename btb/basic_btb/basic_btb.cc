@@ -87,13 +87,6 @@ std::pair<uint64_t, uint8_t> O3_CPU::btb_prediction(uint64_t ip)
 
 void O3_CPU::update_btb(uint64_t ip, uint64_t branch_target, uint8_t taken, uint8_t branch_type)
 {
-  // add something to the RAS
-  if (branch_type == BRANCH_DIRECT_CALL || branch_type == BRANCH_INDIRECT_CALL) {
-    RAS[this].push_back(ip);
-    if (std::size(RAS[this]) > RAS_SIZE)
-      RAS[this].pop_front();
-  }
-
   // updates for indirect branches
   if ((branch_type == BRANCH_INDIRECT) || (branch_type == BRANCH_INDIRECT_CALL)) {
     auto hash = (ip >> 2) ^ ::CONDITIONAL_HISTORY[this].to_ullong();
@@ -105,7 +98,8 @@ void O3_CPU::update_btb(uint64_t ip, uint64_t branch_target, uint8_t taken, uint
     ::CONDITIONAL_HISTORY[this].set(0, taken);
   }
 
-  if (branch_type == BRANCH_RETURN && !std::empty(::RAS[this])) {
+  if ((branch_type == BRANCH_RETURN || branch_type == BRANCH_YIELD) &&
+      !std::empty(::RAS[this])) {
     // recalibrate call-return offset if our return prediction got us close, but not exact
     auto call_ip = ::RAS[this].back();
     ::RAS[this].pop_back();
@@ -116,11 +110,19 @@ void O3_CPU::update_btb(uint64_t ip, uint64_t branch_target, uint8_t taken, uint
     }
   }
 
+  // add something to the RAS
+  if (branch_type == BRANCH_DIRECT_CALL || branch_type == BRANCH_INDIRECT_CALL ||
+      branch_type == BRANCH_YIELD) {
+    RAS[this].push_back(ip);
+    if (std::size(RAS[this]) > RAS_SIZE)
+      RAS[this].pop_front();
+  }
+
   // update btb entry
   auto type = ::branch_info::ALWAYS_TAKEN;
   if ((branch_type == BRANCH_INDIRECT) || (branch_type == BRANCH_INDIRECT_CALL))
     type = ::branch_info::INDIRECT;
-  else if (branch_type == BRANCH_RETURN)
+  else if ((branch_type == BRANCH_RETURN) || (branch_type == BRANCH_YIELD))
     type = ::branch_info::RETURN;
   else if ((branch_type == BRANCH_CONDITIONAL) || (branch_type == BRANCH_OTHER))
     type = ::branch_info::CONDITIONAL;
