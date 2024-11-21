@@ -48,7 +48,7 @@ $(filter-out test, $(sort $(build_dirs) $(module_dirs))): | $(dir $@)
 $(build_objs) $(module_objs): | $(ROOT_DIR)/riscv-unified-db/gen/champsim/riscv.h
 	$(COMPILE.cc) $(OUTPUT_OPTION) $<
 
-$(ROOT_DIR)/riscv-unified-db/%: $(ROOT_DIR)/riscv-unified-db/do
+$(ROOT_DIR)/riscv-unified-db/gen/%: $(ROOT_DIR)/riscv-unified-db/do
 	$< $@
 
 # Add address sanitizers for tests
