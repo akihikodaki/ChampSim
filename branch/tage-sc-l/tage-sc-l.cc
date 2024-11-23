@@ -1572,7 +1572,7 @@ void O3_CPU::initialize_branch_predictor() {
     cout << "CPU " << cpu << " Tage branch predictor" << endl;
 }
 
-uint8_t O3_CPU::predict_branch(uint64_t ip, uint64_t predicted_target, uint8_t always_taken, uint8_t branch_type) {
+uint8_t O3_CPU::predict_branch(uint64_t ip) {
     tage_predictors[cpu].predDir = tage_predictors[cpu].GetPrediction(ip);
     return tage_predictors[cpu].predDir ? 1 : 0;
 }
