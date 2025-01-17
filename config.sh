@@ -720,9 +720,9 @@ with open('Makefile', 'wt') as wfp:
     wfp.write('\t$(RM) ' + instantiation_file_name + '\n')
     wfp.write('\t$(RM) ' + 'inc/cache_modules.inc' + '\n')
     wfp.write('\t$(RM) ' + 'inc/ooo_cpu_modules.inc' + '\n')
-    wfp.write('\t find . -name \*.o -delete\n\t find . -name \*.d -delete\n\t $(RM) -r obj\n\n')
+    wfp.write('\t find . -name \\*.o -delete\n\t find . -name \\*.d -delete\n\t $(RM) -r obj\n\n')
     for v in libfilenames.values():
-        wfp.write('\t find {0} -name \*.o -delete\n\t find {0} -name \*.d -delete\n'.format(*v))
+        wfp.write('\t find {0} -name \\*.o -delete\n\t find {0} -name \\*.d -delete\n'.format(*v))
     wfp.write('\n')
     wfp.write(config_file['executable_name'] + ': $(patsubst %.cc,%.o,$(wildcard src/*.cc)) ' + '$(patsubst %.c,%.o,$(wildcard loongarch/*.c)) ' + ' '.join('obj/' + k for k in libfilenames) + '\n')
     wfp.write('\t$(CXX) $(LDFLAGS) -o $@ $^ $(LDLIBS)\n\n')
