@@ -19,6 +19,7 @@
 
 #include <algorithm>
 #include <array>
+#include <capstone/capstone.h>
 #include <cstdint>
 #include <cassert>
 #include <iostream>
@@ -32,7 +33,6 @@
 #include "trace_instruction.h"
 #include "regfile.h"
 #include "prefetch.h"
-#include "riscv.h"
 
 #define PRINT_TRACE_IP 0xffffffffffffffff
 #define nPRINT_TRACE_INFO
@@ -232,25 +232,325 @@ public:
     this->ret_val = instr.ret_val;
     this->inst = instr.inst;
 
-    champsim::riscv::decoded_inst decoded_inst(instr.inst);
     branch_type = instr.is_branch;
-    op = decoded_inst.idm_op;
-    ls_size = decoded_inst.ls_size;
 
-    for (uint8_t i = 0; i < NUM_INSTR_SOURCES_RISCV; i++) {
-      if (decoded_inst.source_registers[i] == UINT8_MAX) {
-        if (decoded_inst.imm) {
-          source_reg_val[i] = *decoded_inst.imm;
-        }
-        break;
+    csh handle;
+    cs_insn *insn;
+    auto code = reinterpret_cast<const uint8_t *>(&instr.inst);
+    auto size = sizeof(instr.inst);
+
+    auto err = cs_open(CS_ARCH_RISCV, CS_MODE_RISCV64, &handle);
+    if (err) {
+      throw std::runtime_error("cs_open: "s + cs_strerror(err));
+    }
+
+    err = cs_option(handle, CS_OPT_DETAIL, CS_OPT_ON);
+    if (err) {
+        cs_close(&handle);
+        throw std::runtime_error("cs_option: "s + cs_strerror(err));
+    }
+
+    auto success = cs_disasm(handle, code, size, instr.ip, 1, &insn);
+    cs_close(&handle);
+
+    if (!success) {
+      throw std::invalid_argument("cs_disasm: "s + cs_strerror(cs_errno(handle)));
+    }
+
+    switch (insn->id) {
+    case RISCV_INS_ADDIW:
+    case RISCV_INS_ADDW:
+    case RISCV_INS_C_ADDIW:
+    case RISCV_INS_C_ADDW:
+      op = IDM_ADD_W;
+      break;
+
+    case RISCV_INS_ADD:
+    case RISCV_INS_ADDI:
+    case RISCV_INS_C_ADD:
+    case RISCV_INS_C_ADDI:
+      op = IDM_ADD_D;
+      break;
+
+    case RISCV_INS_SUBW:
+    case RISCV_INS_C_SUBW:
+      op = IDM_SUB_W;
+      break;
+
+    case RISCV_INS_SUB:
+    case RISCV_INS_C_SUB:
+      op = IDM_SUB_D;
+      break;
+
+    case RISCV_INS_AND:
+    case RISCV_INS_ANDI:
+    case RISCV_INS_C_AND:
+    case RISCV_INS_C_ANDI:
+      op = IDM_AND;
+      break;
+
+    case RISCV_INS_C_OR:
+    case RISCV_INS_OR:
+    case RISCV_INS_ORI:
+      op = IDM_OR;
+      break;
+
+    case RISCV_INS_C_XOR:
+    case RISCV_INS_XORI:
+      op = IDM_XOR;
+      break;
+
+    case RISCV_INS_MULW:
+      op = IDM_MUL_W;
+      break;
+
+    case RISCV_INS_MUL:
+      op = IDM_MUL_D;
+      break;
+
+    case RISCV_INS_SRLIW:
+    case RISCV_INS_SRLW:
+      op = IDM_SRL_W;
+      break;
+
+    case RISCV_INS_C_SRLI:
+    case RISCV_INS_SRL:
+    case RISCV_INS_SRLI:
+      op = IDM_SRL_D;
+      break;
+
+    case RISCV_INS_SLLW:
+    case RISCV_INS_SLLIW:
+      op = IDM_SLLI_W;
+      break;
+
+    case RISCV_INS_C_SLLI:
+    case RISCV_INS_SLL:
+    case RISCV_INS_SLLI:
+      op = IDM_SLLI_D;
+      break;
+
+    case RISCV_INS_SRAIW:
+    case RISCV_INS_SRAW:
+      op = IDM_SRA_W;
+      break;
+
+    case RISCV_INS_C_SRAI:
+    case RISCV_INS_SRA:
+    case RISCV_INS_SRAI:
+      op = IDM_SRA_D;
+      break;
+
+    case RISCV_INS_LB:
+      op = IDM_LD_B;
+      break;
+
+    case RISCV_INS_LBU:
+      op = IDM_LD_BU;
+      break;
+
+    case RISCV_INS_LH:
+      op = IDM_LD_H;
+      break;
+
+    case RISCV_INS_LHU:
+      op = IDM_LD_HU;
+      break;
+
+    case RISCV_INS_C_FLW:
+    case RISCV_INS_C_FLWSP:
+    case RISCV_INS_LR_W:
+    case RISCV_INS_LR_W_AQ:
+    case RISCV_INS_LR_W_AQ_RL:
+    case RISCV_INS_LR_W_RL:
+    case RISCV_INS_LW:
+      op = IDM_LD_W;
+      break;
+
+    case RISCV_INS_LWU:
+      op = IDM_LD_WU;
+      break;
+
+    case RISCV_INS_C_FLD:
+    case RISCV_INS_C_FLDSP:
+    case RISCV_INS_FLD:
+    case RISCV_INS_LD:
+    case RISCV_INS_LR_D:
+    case RISCV_INS_LR_D_AQ:
+    case RISCV_INS_LR_D_AQ_RL:
+    case RISCV_INS_LR_D_RL:
+      op = IDM_LD_D;
+      break;
+    }
+
+    switch (insn->id) {
+    case RISCV_INS_LB:
+    case RISCV_INS_LBU:
+    case RISCV_INS_SB:
+      ls_size = 1;
+
+    case RISCV_INS_LH:
+    case RISCV_INS_LHU:
+    case RISCV_INS_SH:
+      ls_size = 2;
+      break;
+
+    case RISCV_INS_AMOADD_W:
+    case RISCV_INS_AMOADD_W_AQ:
+    case RISCV_INS_AMOADD_W_AQ_RL:
+    case RISCV_INS_AMOADD_W_RL:
+    case RISCV_INS_AMOAND_W:
+    case RISCV_INS_AMOAND_W_AQ:
+    case RISCV_INS_AMOAND_W_AQ_RL:
+    case RISCV_INS_AMOAND_W_RL:
+    case RISCV_INS_AMOMAXU_W:
+    case RISCV_INS_AMOMAXU_W_AQ:
+    case RISCV_INS_AMOMAXU_W_AQ_RL:
+    case RISCV_INS_AMOMAXU_W_RL:
+    case RISCV_INS_AMOMAX_W:
+    case RISCV_INS_AMOMAX_W_AQ:
+    case RISCV_INS_AMOMAX_W_AQ_RL:
+    case RISCV_INS_AMOMAX_W_RL:
+    case RISCV_INS_AMOMINU_W:
+    case RISCV_INS_AMOMINU_W_AQ:
+    case RISCV_INS_AMOMINU_W_AQ_RL:
+    case RISCV_INS_AMOMINU_W_RL:
+    case RISCV_INS_AMOMIN_W:
+    case RISCV_INS_AMOMIN_W_AQ:
+    case RISCV_INS_AMOMIN_W_AQ_RL:
+    case RISCV_INS_AMOMIN_W_RL:
+    case RISCV_INS_AMOOR_W:
+    case RISCV_INS_AMOOR_W_AQ:
+    case RISCV_INS_AMOOR_W_AQ_RL:
+    case RISCV_INS_AMOOR_W_RL:
+    case RISCV_INS_AMOSWAP_W:
+    case RISCV_INS_AMOSWAP_W_AQ:
+    case RISCV_INS_AMOSWAP_W_AQ_RL:
+    case RISCV_INS_AMOSWAP_W_RL:
+    case RISCV_INS_AMOXOR_W:
+    case RISCV_INS_AMOXOR_W_AQ:
+    case RISCV_INS_AMOXOR_W_AQ_RL:
+    case RISCV_INS_AMOXOR_W_RL:
+    case RISCV_INS_C_FLW:
+    case RISCV_INS_C_FLWSP:
+    case RISCV_INS_C_FSW:
+    case RISCV_INS_C_FSWSP:
+    case RISCV_INS_C_LW:
+    case RISCV_INS_C_LWSP:
+    case RISCV_INS_C_SW:
+    case RISCV_INS_C_SWSP:
+    case RISCV_INS_FLW:
+    case RISCV_INS_FSW:
+    case RISCV_INS_LR_W:
+    case RISCV_INS_LR_W_AQ:
+    case RISCV_INS_LR_W_AQ_RL:
+    case RISCV_INS_LR_W_RL:
+    case RISCV_INS_LW:
+    case RISCV_INS_LWU:
+    case RISCV_INS_SC_W:
+    case RISCV_INS_SC_W_AQ:
+    case RISCV_INS_SC_W_AQ_RL:
+    case RISCV_INS_SC_W_RL:
+    case RISCV_INS_SW:
+      ls_size = 4;
+      break;
+
+    case RISCV_INS_AMOADD_D:
+    case RISCV_INS_AMOADD_D_AQ:
+    case RISCV_INS_AMOADD_D_AQ_RL:
+    case RISCV_INS_AMOADD_D_RL:
+    case RISCV_INS_AMOAND_D:
+    case RISCV_INS_AMOAND_D_AQ:
+    case RISCV_INS_AMOAND_D_AQ_RL:
+    case RISCV_INS_AMOAND_D_RL:
+    case RISCV_INS_AMOMAXU_D:
+    case RISCV_INS_AMOMAXU_D_AQ:
+    case RISCV_INS_AMOMAXU_D_AQ_RL:
+    case RISCV_INS_AMOMAXU_D_RL:
+    case RISCV_INS_AMOMAX_D:
+    case RISCV_INS_AMOMAX_D_AQ:
+    case RISCV_INS_AMOMAX_D_AQ_RL:
+    case RISCV_INS_AMOMAX_D_RL:
+    case RISCV_INS_AMOMINU_D:
+    case RISCV_INS_AMOMINU_D_AQ:
+    case RISCV_INS_AMOMINU_D_AQ_RL:
+    case RISCV_INS_AMOMINU_D_RL:
+    case RISCV_INS_AMOMIN_D:
+    case RISCV_INS_AMOMIN_D_AQ:
+    case RISCV_INS_AMOMIN_D_AQ_RL:
+    case RISCV_INS_AMOMIN_D_RL:
+    case RISCV_INS_AMOOR_D:
+    case RISCV_INS_AMOOR_D_AQ:
+    case RISCV_INS_AMOOR_D_AQ_RL:
+    case RISCV_INS_AMOOR_D_RL:
+    case RISCV_INS_AMOSWAP_D:
+    case RISCV_INS_AMOSWAP_D_AQ:
+    case RISCV_INS_AMOSWAP_D_AQ_RL:
+    case RISCV_INS_AMOSWAP_D_RL:
+    case RISCV_INS_AMOXOR_D:
+    case RISCV_INS_AMOXOR_D_AQ:
+    case RISCV_INS_AMOXOR_D_AQ_RL:
+    case RISCV_INS_AMOXOR_D_RL:
+    case RISCV_INS_C_FLD:
+    case RISCV_INS_C_FLDSP:
+    case RISCV_INS_C_FSD:
+    case RISCV_INS_C_FSDSP:
+    case RISCV_INS_C_LD:
+    case RISCV_INS_C_LDSP:
+    case RISCV_INS_C_SD:
+    case RISCV_INS_C_SDSP:
+    case RISCV_INS_FLD:
+    case RISCV_INS_FSD:
+    case RISCV_INS_LD:
+    case RISCV_INS_LR_D:
+    case RISCV_INS_LR_D_AQ:
+    case RISCV_INS_LR_D_AQ_RL:
+    case RISCV_INS_LR_D_RL:
+    case RISCV_INS_SC_D:
+    case RISCV_INS_SC_D_AQ:
+    case RISCV_INS_SC_D_AQ_RL:
+    case RISCV_INS_SC_D_RL:
+    case RISCV_INS_SD:
+      ls_size = 8;
+      break;
+    }
+
+    auto source_reg_valp = source_reg_val;
+
+    for (uint8_t i = 0; i < insn->detail->regs_read_count; i++) {
+      *source_reg_valp = regfile[cpu].read(insn->detail->riscv.operands[i].reg);
+      source_reg_valp++;
+    }
+
+    for (uint8_t i = 0; i < insn->detail->riscv.op_count; i++) {
+      if (insn->detail->riscv.operands[i].access & CS_AC_READ &&
+          insn->detail->riscv.operands[i].type == RISCV_OP_REG) {
+        *source_reg_valp = regfile[cpu].read(insn->detail->riscv.operands[i].reg);
+        source_reg_valp++;
       }
-
-      source_reg_val[i] = regfile[cpu].read(decoded_inst.source_registers[i]);
     }
 
-    if (!destination_registers.empty()) {
-      regfile[cpu].write(destination_registers[0], ret_val);
+    for (uint8_t i = 0; i < insn->detail->riscv.op_count; i++) {
+      if (insn->detail->riscv.operands[i].access & CS_AC_READ &&
+          insn->detail->riscv.operands[i].type == RISCV_OP_IMM) {
+        *source_reg_valp = insn->detail->riscv.operands[i].imm;
+        source_reg_valp++;
+      }
     }
+
+    if (insn->detail->regs_write_count) {
+      regfile[cpu].write(insn->detail->regs_write[0], ret_val);
+    } else {
+      for (uint8_t i = 0; i < insn->detail->riscv.op_count; i++) {
+        if (insn->detail->riscv.operands[i].access & CS_AC_WRITE &&
+            insn->detail->riscv.operands[i].type == RISCV_OP_REG) {
+          regfile[cpu].write(insn->detail->riscv.operands[i].reg, ret_val);
+          break;
+        }
+      }
+    }
+
+    cs_free(insn, 1);
 
 
     #ifdef PRINT_TRACE_INFO

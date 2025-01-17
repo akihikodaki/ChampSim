@@ -1,13 +1,13 @@
 ROOT_DIR = $(patsubst %/,%,$(dir $(abspath $(firstword $(MAKEFILE_LIST)))))
 
-CPPFLAGS += -MMD -I$(ROOT_DIR)/inc -I$(ROOT_DIR)/riscv-unified-db/gen/champsim
+CPPFLAGS += -MMD -I$(ROOT_DIR)/inc
 CXXFLAGS += --std=c++17 -O3 -Wall -Wextra -Wshadow -Wpedantic
 
 # vcpkg integration
 TRIPLET_DIR = $(patsubst %/,%,$(firstword $(filter-out $(ROOT_DIR)/vcpkg_installed/vcpkg/, $(wildcard $(ROOT_DIR)/vcpkg_installed/*/))))
 CPPFLAGS += -isystem $(TRIPLET_DIR)/include
 LDFLAGS  += -L$(TRIPLET_DIR)/lib -L$(TRIPLET_DIR)/lib/manual-link
-LDLIBS   += -llzma -lz -lbz2 -lfmt
+LDLIBS   += -lcapstone -llzma -lz -lbz2 -lfmt
 
 .phony: all all_execs clean configclean test makedirs
 
@@ -45,11 +45,8 @@ $(filter-out test, $(sort $(build_dirs) $(module_dirs))): | $(dir $@)
 	-mkdir $@
 
 # All .o files should be made like .cc files
-$(build_objs) $(module_objs): | $(ROOT_DIR)/riscv-unified-db/gen/champsim/riscv.h
+$(build_objs) $(module_objs):
 	$(COMPILE.cc) $(OUTPUT_OPTION) $<
-
-$(ROOT_DIR)/riscv-unified-db/gen/%: $(ROOT_DIR)/riscv-unified-db/do
-	$< $@
 
 # Add address sanitizers for tests
 #$(test_main_name): CXXFLAGS += -fsanitize=address -fno-omit-frame-pointer

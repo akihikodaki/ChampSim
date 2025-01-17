@@ -2,6 +2,7 @@
   "name": "champsim",
   "version-string": "1.0",
   "dependencies": [
+    "capstone",
     "cli11",
     "nlohmann-json",
     "fmt",
