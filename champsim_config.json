@@ -4,6 +4,7 @@
     "page_size": 4096,
     "heartbeat_frequency": 10000000,
     "num_cores": 1,
+    "CXXFLAGS": ["-g"],
 
     "ooo_cpu": [
         {
