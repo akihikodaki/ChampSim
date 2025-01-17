@@ -18,5 +18,7 @@ IncludeCategories:
     Priority: 2
 PointerAlignment: Left
 SortIncludes: true
+---
+Language: Json
 ...
 
