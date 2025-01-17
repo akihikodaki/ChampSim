@@ -351,7 +351,7 @@ long O3_CPU::decode_instruction()
     int depend_idx = 0xff;
     int undepend_idx = 0xff;
     bool is_depend[2] = {false};
-    for (int i = 0; i < db_entry.source_registers.size(); i++) {
+    for (size_t i = 0; i < db_entry.source_registers.size(); i++) {
       if (pt[cpu][db_entry.source_registers[i]].type != LOAD_TYPE_NONE) {
         is_depend[i] = true;
         depend_idx = i;

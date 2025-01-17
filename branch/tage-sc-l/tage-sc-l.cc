@@ -654,7 +654,7 @@ public:
   }
 
   // gindex computes a full hash of PC, ghist and phist
-  int gindex(unsigned int PC, int bank, long long hist, folded_history* ch_i)
+  int gindex(unsigned int PC, int bank, long long hist)
   {
     int index;
     int M = (m[bank] > PHISTWIDTH) ? PHISTWIDTH : m[bank];
@@ -722,7 +722,7 @@ public:
     HitBank = 0;
     AltBank = 0;
     for (int i = 1; i <= NHIST; i += 2) {
-      GI[i] = gindex(PC, i, phist, ch_i);
+      GI[i] = gindex(PC, i, phist);
       GTAG[i] = gtag(PC, i, ch_t[0], ch_t[1]);
       GTAG[i + 1] = GTAG[i];
       GI[i + 1] = GI[i] ^ (GTAG[i] & ((1 << LOGG) - 1));
@@ -1010,7 +1010,7 @@ public:
 
   // PREDICTOR UPDATE
 
-  void UpdatePredictor(uint64_t PC, uint8_t opType, bool resolveDir, bool predDir, uint64_t branchTarget)
+  void UpdatePredictor(uint64_t PC, uint8_t opType, bool resolveDir, uint64_t branchTarget)
   {
 
 #ifdef SC
@@ -1393,8 +1393,8 @@ public:
 
       if ((MYRANDOM() & 3) == 0)
         for (int i = 0; i < 4; i++) {
-          int LHIT = (X + i) & 3;
-          int index = (LI ^ ((LIB >> LHIT) << 2)) + LHIT;
+          int LALLOC = (X + i) & 3;
+          int index = (LI ^ ((LIB >> LALLOC) << 2)) + LALLOC;
           if (ltable[index].age == 0) {
             ltable[index].dir = !Taken;
             // most of mispredictions are on last iterations
@@ -1427,5 +1427,5 @@ uint8_t O3_CPU::predict_branch(uint64_t ip)
 
 void O3_CPU::last_branch_result(uint64_t ip, uint64_t branch_target, uint8_t taken, uint8_t branch_type)
 {
-  tage_predictors[cpu].UpdatePredictor(ip, branch_type, (taken != 0), tage_predictors[cpu].predDir, branch_target);
+  tage_predictors[cpu].UpdatePredictor(ip, branch_type, (taken != 0), branch_target);
 }

@@ -390,6 +390,7 @@ public:
     case RISCV_INS_LBU:
     case RISCV_INS_SB:
       ls_size = 1;
+      break;
 
     case RISCV_INS_LH:
     case RISCV_INS_LHU:
