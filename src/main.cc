@@ -20,20 +20,20 @@
 #include <string>
 #include <vector>
 
+#include "arch.h"
 #include "champsim.h"
 #include "champsim_constants.h"
 #include "core_inst.inc"
+#include "instruction.h"
+#include "memory_data.h"
 #include "phase_info.h"
+#include "prefetch.h"
+#include "regfile.h"
 #include "stats_printer.h"
 #include "tracereader.h"
 #include "vmem.h"
 #include <CLI/CLI.hpp>
 #include <fmt/core.h>
-#include "arch.h"
-#include "memory_data.h"
-#include "regfile.h"
-#include "prefetch.h"
-#include "instruction.h"
 
 uint64_t total_inst_num = 0;
 uint64_t total_load_num = 0;
@@ -149,15 +149,15 @@ int main(int argc, char** argv)
   }
 
   // Regfile & Memory initializaiton
-  if(trace_type==TRACE_TYPE_RISCV){
+  if (trace_type == TRACE_TYPE_RISCV) {
     uint8_t i = 0;
     for (auto& trace_name : trace_names) {
       // Regfile
       int pos = trace_name.find(".champsim.xz");
-      if(pos == -1){
+      if (pos == -1) {
         pos = trace_name.find(".champsim.trace.xz");
       }
-      if(pos == -1){
+      if (pos == -1) {
         std::cout << "Trace Name Error!" << std::endl;
       }
       string prefix_name = trace_name.substr(0, pos);
@@ -171,19 +171,14 @@ int main(int argc, char** argv)
       i++;
     }
 
-    champsim::arch = { 2, UINT8_MAX, UINT8_MAX };
+    champsim::arch = {2, UINT8_MAX, UINT8_MAX};
   } else {
-    champsim::arch = {
-      champsim::REG_STACK_POINTER,
-      champsim::REG_FLAGS,
-      champsim::REG_INSTRUCTION_POINTER
-    };
+    champsim::arch = {champsim::REG_STACK_POINTER, champsim::REG_FLAGS, champsim::REG_INSTRUCTION_POINTER};
   }
 
   std::vector<champsim::tracereader> traces;
-  std::transform(
-      std::begin(trace_names), std::end(trace_names), std::back_inserter(traces),
-      [repeat = simulation_given, i = uint8_t(0)](auto name) mutable { return get_tracereader(name, i++, trace_type, repeat); });
+  std::transform(std::begin(trace_names), std::end(trace_names), std::back_inserter(traces),
+                 [repeat = simulation_given, i = uint8_t(0)](auto name) mutable { return get_tracereader(name, i++, trace_type, repeat); });
 
   std::vector<champsim::phase_info> phases{
       {champsim::phase_info{"Warmup", true, warmup_instructions, std::vector<std::size_t>(std::size(trace_names), 0), trace_names},

@@ -21,18 +21,17 @@
 #include <cmath>
 #include <numeric>
 
+#include "arch.h"
 #include "cache.h"
 #include "champsim.h"
 #include "deadlock.h"
 #include "instruction.h"
+#include "memory_data.h"
+#include "prefetch.h"
 #include "util/span.h"
 #include <fmt/chrono.h>
 #include <fmt/core.h>
 #include <fmt/ranges.h>
-
-#include "arch.h"
-#include "prefetch.h"
-#include "memory_data.h"
 
 #define nPRINT_TRACE
 
@@ -59,8 +58,8 @@ extern MEMORY_DATA mem_data[NUM_CPUS];
 extern std::unordered_map<uint64_t, decode_load_info_t> decode_pc_info;
 
 pt_format_t pt[NUM_CPUS][64] = {0, 0};
-#if (defined DECODE_COLLECT_INFO) || (defined MISS_COLLECT_INFO) 
-    uint8_t complex_infect_info[NUM_CPUS][64] = {0};
+#if (defined DECODE_COLLECT_INFO) || (defined MISS_COLLECT_INFO)
+uint8_t complex_infect_info[NUM_CPUS][64] = {0};
 #endif
 
 IPT_L1 ipt[NUM_CPUS][IPT_NUM];
@@ -352,220 +351,218 @@ long O3_CPU::decode_instruction()
     int depend_idx = 0xff;
     int undepend_idx = 0xff;
     bool is_depend[2] = {false};
-    for(int i = 0; i < db_entry.source_registers.size(); i++){
-        if(pt[cpu][db_entry.source_registers[i]].type!=LOAD_TYPE_NONE){
-            is_depend[i] = true;
-            depend_idx = i;
-        }
+    for (int i = 0; i < db_entry.source_registers.size(); i++) {
+      if (pt[cpu][db_entry.source_registers[i]].type != LOAD_TYPE_NONE) {
+        is_depend[i] = true;
+        depend_idx = i;
+      }
     }
 
     //// Search IPT
-    uint64_t trace_ip = (trace_type == TRACE_TYPE_RISCV)? (db_entry.ip >> 2) : db_entry.ip;
+    uint64_t trace_ip = (trace_type == TRACE_TYPE_RISCV) ? (db_entry.ip >> 2) : db_entry.ip;
     uint32_t stride_hit_idx = IPT_NUM;
 
-    for(uint32_t i = 0; i < IPT_NUM; i++){
-        if(ipt[cpu][i].conf >= 3 && ipt[cpu][i].ip == trace_ip)
-            stride_hit_idx = i;
+    for (uint32_t i = 0; i < IPT_NUM; i++) {
+      if (ipt[cpu][i].conf >= 3 && ipt[cpu][i].ip == trace_ip)
+        stride_hit_idx = i;
     }
     bool is_load = idm_op_is_load(db_entry.op);
     bool ip_stride_hit = is_load && (stride_hit_idx < IPT_NUM);
 
     bool has_depend, both_depend;
 
-    if(!db_entry.destination_registers.empty()){
-        has_depend  = is_depend[0] || is_depend[1];
-        both_depend = is_depend[0] && is_depend[1];
-        undepend_idx = (depend_idx == 0)? 1 : 0;
-        int64_t last_dct_ptr = depend_idx == 0xff ?
-                               -1 :
-                               pt[cpu][db_entry.source_registers[depend_idx]].dct_ptr;
+    if (!db_entry.destination_registers.empty()) {
+      has_depend = is_depend[0] || is_depend[1];
+      both_depend = is_depend[0] && is_depend[1];
+      undepend_idx = (depend_idx == 0) ? 1 : 0;
+      int64_t last_dct_ptr = depend_idx == 0xff ? -1 : pt[cpu][db_entry.source_registers[depend_idx]].dct_ptr;
 
-        //// Search DCT
-        int64_t dct_hit_idx = dct[cpu].search_pc(trace_ip);
-        bool dct_hit = (dct_hit_idx != -1);
-        bool prev_dct_hit = (last_dct_ptr != -1) && dct[cpu].buffer[last_dct_ptr].valid;
+      //// Search DCT
+      int64_t dct_hit_idx = dct[cpu].search_pc(trace_ip);
+      bool dct_hit = (dct_hit_idx != -1);
+      bool prev_dct_hit = (last_dct_ptr != -1) && dct[cpu].buffer[last_dct_ptr].valid;
 
-        IDM_OP op = db_entry.op;
-        //if(op == IDM_INVALID)
-        //    cout << "NOTE: Unknown op! pc: " << hex << db_entry.ip << dec << endl;
-        if(ip_stride_hit){
-            if(!dct_hit){
-                DCT_ITEM new_item;
-                new_item.valid = true;
-                new_item.head = true;
-                new_item.formed = true;
-                new_item.conf = 3;
-                new_item.pc = trace_ip;
-                new_item.op = op;
-                new_item.const_idx = true;
-                new_item.src = 0;
-                new_item.last_dct_ptr = 0;
-                #ifdef PREFETCH_DEBUG
-                new_item.ip = db_entry.ip;
-                new_item.cycle = current_cycle;
-                #endif
-                dct_hit_idx = dct[cpu].insert(new_item);
+      IDM_OP op = db_entry.op;
+      // if(op == IDM_INVALID)
+      //     cout << "NOTE: Unknown op! pc: " << hex << db_entry.ip << dec << endl;
+      if (ip_stride_hit) {
+        if (!dct_hit) {
+          DCT_ITEM new_item;
+          new_item.valid = true;
+          new_item.head = true;
+          new_item.formed = true;
+          new_item.conf = 3;
+          new_item.pc = trace_ip;
+          new_item.op = op;
+          new_item.const_idx = true;
+          new_item.src = 0;
+          new_item.last_dct_ptr = 0;
+#ifdef PREFETCH_DEBUG
+          new_item.ip = db_entry.ip;
+          new_item.cycle = current_cycle;
+#endif
+          dct_hit_idx = dct[cpu].insert(new_item);
 
-                dct_write_num++;
-            } else {
-                dct[cpu].buffer[dct_hit_idx].head = true;
-                dct[cpu].buffer[dct_hit_idx].formed = true;
-                dct[cpu].buffer[dct_hit_idx].conf = 3;
-                dct[cpu].buffer[dct_hit_idx].last_dct_ptr = 0;
+          dct_write_num++;
+        } else {
+          dct[cpu].buffer[dct_hit_idx].head = true;
+          dct[cpu].buffer[dct_hit_idx].formed = true;
+          dct[cpu].buffer[dct_hit_idx].conf = 3;
+          dct[cpu].buffer[dct_hit_idx].last_dct_ptr = 0;
+        }
+
+        dct_search_num++;
+      }
+
+      if (!ip_stride_hit && has_depend && !both_depend) {
+        uint64_t new_src = db_entry.source_reg_val[undepend_idx];
+
+        if (!dct_hit && prev_dct_hit) {
+          DCT_ITEM new_item;
+          new_item.valid = true;
+          new_item.head = false;
+          new_item.formed = is_load;
+          new_item.conf = 1;
+          new_item.pc = trace_ip;
+          new_item.op = op;
+          new_item.const_idx = undepend_idx;
+          new_item.src = new_src;
+          new_item.last_dct_ptr = 1;
+#ifdef PREFETCH_DEBUG
+          new_item.ip = db_entry.ip;
+          new_item.cycle = current_cycle;
+#endif
+          dct_hit_idx = dct[cpu].insert(new_item);
+
+          // Update formed backward
+          if (is_load) {
+            uint64_t idx = last_dct_ptr;
+            while (!dct[cpu].buffer[idx].formed) {
+              dct[cpu].buffer[idx].formed = true;
+              idx = dct[cpu].buffer[idx].last_dct_ptr;
+            }
+          }
+
+          dct_write_num++;
+        } else if (dct_hit) {
+          uint64_t old_src = dct[cpu].buffer[dct_hit_idx].src;
+          uint8_t old_conf = dct[cpu].buffer[dct_hit_idx].conf;
+#ifdef COLLECT_SAME_SRC
+          if (dct[cpu].buffer[dct_hit_idx].formed) {
+            dct_hit_needbyload_num++;
+            dct_hit_same_src_num += (old_src == new_src);
+          }
+#endif
+#ifdef COLLECT_USELESS
+          bool collect_useless_conf_3 = dct[cpu].buffer[dct_hit_idx].conf == 3;
+          bool collect_useless_needbyload = dct[cpu].buffer[dct_hit_idx].formed;
+          dct_hit_num += collect_useless_conf_3;
+          dct_hit_useless_num += collect_useless_conf_3 && !collect_useless_needbyload;
+#endif
+          if (old_src == new_src) {
+            dct[cpu].buffer[dct_hit_idx].conf = (old_conf < 3) ? old_conf + 1 : old_conf;
+          } else {
+            dct[cpu].buffer[dct_hit_idx].conf = (old_conf > 0) ? old_conf - 1 : old_conf;
+          }
+          if (db_entry.source_registers[undepend_idx] == 0) {
+            dct[cpu].buffer[dct_hit_idx].conf = 3;
+          }
+
+          /**
+           * If a dependent load is trained as a stride errorly, we should restore the correct
+           * info. We should reset head & const_idx.
+           */
+          dct[cpu].buffer[dct_hit_idx].head = false;
+          dct[cpu].buffer[dct_hit_idx].const_idx = undepend_idx;
+          dct[cpu].buffer[dct_hit_idx].src = new_src;
+          dct[cpu].buffer[dct_hit_idx].last_dct_ptr = last_dct_ptr;
+#ifdef PREFETCH_DEBUG
+          dct[cpu].buffer[dct_hit_idx].cycle = current_cycle;
+#endif
+
+          if (old_conf != 3 && old_conf != 0) {
+            dct_write_num++;
+          }
+        }
+
+        dct_search_num++;
+      }
+
+      if (is_load && both_depend)
+        idm_double_stride++;
+
+      if (ip_stride_hit && dct_hit_idx != -1) {
+        pt[cpu][db_entry.destination_registers[0]].type = LOAD_TYPE_ORIGINAL_STRIDE;
+        pt[cpu][db_entry.destination_registers[0]].dct_ptr = dct_hit_idx;
+      } else if (has_depend && !both_depend && dct_hit_idx != -1) {
+        pt[cpu][db_entry.destination_registers[0]].type = LOAD_TYPE_INFECTED_STRIDE;
+        pt[cpu][db_entry.destination_registers[0]].dct_ptr = dct_hit_idx;
+      } else {
+        pt[cpu][db_entry.destination_registers[0]].type = LOAD_TYPE_NONE;
+      }
+
+#if (defined DECODE_COLLECT_INFO) || (defined MISS_COLLECT_INFO)
+#define DECODE_NONE 0
+#define DECODE_INFECT 1
+#define DECODE_COMPLEX 2
+      uint8_t depend_type[2];
+      depend_type[0] = complex_infect_info[cpu][db_entry.source_registers[0]];
+      depend_type[1] = complex_infect_info[cpu][db_entry.source_registers[1]];
+      bool decode_has_depend = (depend_type[0] != DECODE_NONE) || (depend_type[1] != DECODE_NONE);
+      bool decode_both_depend = (depend_type[0] != DECODE_NONE) && (depend_type[1] != DECODE_NONE);
+      bool depend_complex = depend_type[0] == DECODE_COMPLEX || depend_type[1] == DECODE_COMPLEX;
+
+      if (ip_stride_hit) {
+        complex_infect_info[cpu][db_entry.destination_registers[0]] = DECODE_INFECT;
+      } else if (depend_complex || (has_depend && idm_op_is_complex(op))) {
+        complex_infect_info[cpu][db_entry.destination_registers[0]] = DECODE_COMPLEX;
+      } else if (has_depend) {
+        complex_infect_info[cpu][db_entry.destination_registers[0]] = DECODE_INFECT;
+      } else {
+        complex_infect_info[cpu][db_entry.destination_registers[0]] = LOAD_TYPE_NONE;
+      }
+
+#ifdef MISS_COLLECT_INFO
+      if (ip_stride_hit) {
+        db_entry.load_type = LOAD_STRIDE;
+      } else if (depend_complex || (has_depend && idm_op_is_complex(op))) {
+        db_entry.load_type = LOAD_COMPLEX;
+      } else if (has_depend) {
+        db_entry.load_type = LOAD_INFECT;
+      } else {
+        db_entry.load_type = LOAD_NONE;
+      }
+#endif
+
+      std::unordered_map<uint64_t, decode_load_info_t>::iterator hit_item;
+      hit_item = decode_pc_info.find(db_entry.ip);
+      if (is_load) {
+        if (hit_item != decode_pc_info.end()) {
+          hit_item->second.total_count++;
+          if (ip_stride_hit) {
+            hit_item->second.stride_count++;
+          } else if (decode_has_depend) {
+            if (!decode_both_depend) {
+              hit_item->second.ima_single_count++;
+            } else if (decode_both_depend) {
+              hit_item->second.ima_double_count++;
             }
 
-            dct_search_num++;
-        }
-
-        if(!ip_stride_hit && has_depend && !both_depend){
-            uint64_t new_src = db_entry.source_reg_val[undepend_idx];
-
-            if(!dct_hit && prev_dct_hit){
-                DCT_ITEM new_item;
-                new_item.valid = true;
-                new_item.head = false;
-                new_item.formed = is_load;
-                new_item.conf = 1;
-                new_item.pc = trace_ip;
-                new_item.op = op;
-                new_item.const_idx = undepend_idx;
-                new_item.src = new_src;
-                new_item.last_dct_ptr = 1;
-            #ifdef PREFETCH_DEBUG
-                new_item.ip = db_entry.ip;
-                new_item.cycle = current_cycle;
-            #endif
-                dct_hit_idx = dct[cpu].insert(new_item);
-
-                // Update formed backward
-                if(is_load){
-                    uint64_t idx = last_dct_ptr;
-                    while (!dct[cpu].buffer[idx].formed) {
-                        dct[cpu].buffer[idx].formed = true;
-                        idx = dct[cpu].buffer[idx].last_dct_ptr;
-                    }
-                }
-
-                dct_write_num++;
-            } else if(dct_hit) {
-                uint64_t old_src = dct[cpu].buffer[dct_hit_idx].src;
-                uint8_t old_conf = dct[cpu].buffer[dct_hit_idx].conf;
-            #ifdef COLLECT_SAME_SRC
-                if(dct[cpu].buffer[dct_hit_idx].formed){
-                    dct_hit_needbyload_num++;
-                    dct_hit_same_src_num += (old_src == new_src);
-                }
-            #endif
-            #ifdef COLLECT_USELESS
-                bool collect_useless_conf_3 = dct[cpu].buffer[dct_hit_idx].conf == 3;
-                bool collect_useless_needbyload = dct[cpu].buffer[dct_hit_idx].formed;
-                dct_hit_num += collect_useless_conf_3;
-                dct_hit_useless_num += collect_useless_conf_3 && !collect_useless_needbyload;
-            #endif
-                if(old_src == new_src){
-                    dct[cpu].buffer[dct_hit_idx].conf = (old_conf < 3)? old_conf+1 : old_conf;
-                } else {
-                    dct[cpu].buffer[dct_hit_idx].conf = (old_conf > 0)? old_conf-1 : old_conf;
-                }
-                if(db_entry.source_registers[undepend_idx] == 0){
-                    dct[cpu].buffer[dct_hit_idx].conf = 3;
-                }
-
-                /**
-                 * If a dependent load is trained as a stride errorly, we should restore the correct 
-                 * info. We should reset head & const_idx.
-                 */
-                dct[cpu].buffer[dct_hit_idx].head = false;
-                dct[cpu].buffer[dct_hit_idx].const_idx = undepend_idx;
-                dct[cpu].buffer[dct_hit_idx].src = new_src;
-                dct[cpu].buffer[dct_hit_idx].last_dct_ptr = last_dct_ptr;
-            #ifdef PREFETCH_DEBUG
-                dct[cpu].buffer[dct_hit_idx].cycle = current_cycle;
-            #endif
-
-                if(old_conf != 3 && old_conf != 0){
-                    dct_write_num++;
-                }
+            if (depend_complex) {
+              hit_item->second.ima_complex_count++;
             }
-
-            dct_search_num++;
-        }
-
-        if(is_load && both_depend)
-            idm_double_stride++;
-
-        if(ip_stride_hit && dct_hit_idx != -1) {
-            pt[cpu][db_entry.destination_registers[0]].type = LOAD_TYPE_ORIGINAL_STRIDE;
-            pt[cpu][db_entry.destination_registers[0]].dct_ptr = dct_hit_idx;
-        } else if(has_depend && !both_depend && dct_hit_idx != -1) {
-            pt[cpu][db_entry.destination_registers[0]].type = LOAD_TYPE_INFECTED_STRIDE;
-            pt[cpu][db_entry.destination_registers[0]].dct_ptr = dct_hit_idx;
+          }
         } else {
-            pt[cpu][db_entry.destination_registers[0]].type = LOAD_TYPE_NONE;
+          decode_load_info_t new_info = {
+              .total_count = 1,
+              .stride_count = 0,
+              .ima_single_count = 0,
+              .ima_double_count = 0,
+          };
+          decode_pc_info.insert(std::pair<uint64_t, decode_load_info_t>(db_entry.ip, new_info));
         }
-
-    #if (defined DECODE_COLLECT_INFO) || (defined MISS_COLLECT_INFO) 
-        #define DECODE_NONE    0
-        #define DECODE_INFECT  1
-        #define DECODE_COMPLEX 2
-        uint8_t depend_type[2];
-        depend_type[0] = complex_infect_info[cpu][db_entry.source_registers[0]];
-        depend_type[1] = complex_infect_info[cpu][db_entry.source_registers[1]];
-        bool decode_has_depend  = (depend_type[0]!=DECODE_NONE) || (depend_type[1]!=DECODE_NONE);
-        bool decode_both_depend = (depend_type[0]!=DECODE_NONE) && (depend_type[1]!=DECODE_NONE);
-        bool depend_complex = depend_type[0]==DECODE_COMPLEX || depend_type[1]==DECODE_COMPLEX;
-
-        if(ip_stride_hit){
-            complex_infect_info[cpu][db_entry.destination_registers[0]] = DECODE_INFECT;
-        } else if(depend_complex || (has_depend && idm_op_is_complex(op))){
-            complex_infect_info[cpu][db_entry.destination_registers[0]] = DECODE_COMPLEX;
-        } else if(has_depend){
-            complex_infect_info[cpu][db_entry.destination_registers[0]] = DECODE_INFECT;
-        } else {
-            complex_infect_info[cpu][db_entry.destination_registers[0]] = LOAD_TYPE_NONE;
-        }
-
-    #ifdef MISS_COLLECT_INFO
-        if(ip_stride_hit){
-            db_entry.load_type = LOAD_STRIDE;
-        } else if(depend_complex || (has_depend && idm_op_is_complex(op))){
-            db_entry.load_type = LOAD_COMPLEX;
-        } else if(has_depend){
-            db_entry.load_type = LOAD_INFECT;
-        } else {
-            db_entry.load_type = LOAD_NONE;
-        }
-    #endif
-
-        std::unordered_map<uint64_t, decode_load_info_t>::iterator hit_item;
-        hit_item =  decode_pc_info.find(db_entry.ip);
-        if(is_load){
-            if(hit_item != decode_pc_info.end()){
-                hit_item->second.total_count++;
-                if(ip_stride_hit){
-                    hit_item->second.stride_count++;
-                } else if(decode_has_depend){
-                    if(!decode_both_depend){
-                        hit_item->second.ima_single_count ++;
-                    } else if(decode_both_depend){
-                        hit_item->second.ima_double_count ++;
-                    }
-
-                    if(depend_complex){
-                        hit_item->second.ima_complex_count++;
-                    }
-                }
-            }else {
-                decode_load_info_t new_info = {
-                    .total_count      = 1,
-                    .stride_count     = 0,
-                    .ima_single_count = 0,
-                    .ima_double_count = 0,
-                };
-                decode_pc_info.insert(std::pair<uint64_t, decode_load_info_t>(db_entry.ip, new_info));
-            }
-        }
-    #endif
+      }
+#endif
     }
 #ifdef DECODE_COLLECT_INFO
     decode_inst_num++;
@@ -573,34 +570,25 @@ long O3_CPU::decode_instruction()
 #endif
 
 #ifdef PRINT_DCT
-if(start_print){
-    cout << "pc: " << hex << db_entry.ip << dec 
-         << ", cycle: " << current_cycle
-         << ", ip_stride_hit: " << +ip_stride_hit
-         << endl;
+    if (start_print) {
+      cout << "pc: " << hex << db_entry.ip << dec << ", cycle: " << current_cycle << ", ip_stride_hit: " << +ip_stride_hit << endl;
 
-    for(int i = 0; i < 4; i++) {
-        cout << "dct["<< i << "]: ";
+      for (int i = 0; i < 4; i++) {
+        cout << "dct[" << i << "]: ";
         dct[cpu].buffer[i].print();
+      }
     }
-}
 #endif
 #ifdef PRINT_INFECT_INFO
-if(start_print){
-    cout << "pc: " << hex << db_entry.ip << dec 
-         << ", cycle: " << current_cycle
-         << ", ip_stride_hit: " << +ip_stride_hit
-         << endl;
+    if (start_print) {
+      cout << "pc: " << hex << db_entry.ip << dec << ", cycle: " << current_cycle << ", ip_stride_hit: " << +ip_stride_hit << endl;
 
-    for(int i = 0; i < 32; i++) {
-        cout << "pt[" << i << "]" << hex
-             << ", type : " << +pt[cpu][i].type
-             << ", ipt_way : " << +pt[cpu][i].ipt_way
-             << ", ipt_set : " << +pt[cpu][i].ipt_set << dec
-             << endl;
+      for (int i = 0; i < 32; i++) {
+        cout << "pt[" << i << "]" << hex << ", type : " << +pt[cpu][i].type << ", ipt_way : " << +pt[cpu][i].ipt_way << ", ipt_set : " << +pt[cpu][i].ipt_set
+             << dec << endl;
+      }
+      cout << endl;
     }
-    cout << endl;
-}
 #endif
 
     // Add to dispatch
@@ -928,35 +916,35 @@ long O3_CPU::retire_rob()
 
   std::for_each(retire_begin, retire_end, [this](const auto& x) {
     //// Search DCT
-    uint64_t trace_ip = (trace_type == TRACE_TYPE_RISCV)? (x.ip >> 2) : x.ip;
+    uint64_t trace_ip = (trace_type == TRACE_TYPE_RISCV) ? (x.ip >> 2) : x.ip;
     int64_t dct_hit_idx = dct[cpu].search_pc(trace_ip);
-    if(dct_hit_idx != -1){
-        if(dct[cpu].buffer[dct_hit_idx].head && dct[cpu].buffer[dct_hit_idx].cnt == 0){
-            vector<uint64_t> cand = {(uint64_t) dct_hit_idx};
-            while(!cand.empty()){
-                uint64_t index = cand.back();
-                cand.pop_back();
+    if (dct_hit_idx != -1) {
+      if (dct[cpu].buffer[dct_hit_idx].head && dct[cpu].buffer[dct_hit_idx].cnt == 0) {
+        vector<uint64_t> cand = {(uint64_t)dct_hit_idx};
+        while (!cand.empty()) {
+          uint64_t index = cand.back();
+          cand.pop_back();
 
-                for(auto it = dct[cpu].buffer.begin(); it != dct[cpu].buffer.end(); it++){
-                    if(it->valid && !it->head && it->last_dct_ptr == index){
-                        if(it->cnt > 115){
-                            it->dense = true;
-                        } else{
-                            it->dense = false;
-                        }
+          for (auto it = dct[cpu].buffer.begin(); it != dct[cpu].buffer.end(); it++) {
+            if (it->valid && !it->head && it->last_dct_ptr == index) {
+              if (it->cnt > 115) {
+                it->dense = true;
+              } else {
+                it->dense = false;
+              }
 
-                        it->cnt = 0;
-                        cand.push_back(distance(dct[cpu].buffer.begin(), it));
-                    }
-                }
+              it->cnt = 0;
+              cand.push_back(distance(dct[cpu].buffer.begin(), it));
             }
+          }
         }
+      }
 
-        if(dct[cpu].buffer[dct_hit_idx].head){
-            dct[cpu].buffer[dct_hit_idx].cnt++;
-        } else if(dct[cpu].buffer[dct_hit_idx].cnt < 255){
-            dct[cpu].buffer[dct_hit_idx].cnt++;
-        }
+      if (dct[cpu].buffer[dct_hit_idx].head) {
+        dct[cpu].buffer[dct_hit_idx].cnt++;
+      } else if (dct[cpu].buffer[dct_hit_idx].cnt < 255) {
+        dct[cpu].buffer[dct_hit_idx].cnt++;
+      }
     }
   });
 

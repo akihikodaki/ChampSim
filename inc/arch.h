@@ -1,6 +1,8 @@
 #ifndef ARCH_H
 #define ARCH_H
 
+#include <cstdint>
+
 namespace champsim
 {
 struct Arch {
@@ -10,6 +12,6 @@ struct Arch {
 };
 
 extern Arch arch;
-}
+} // namespace champsim
 
 #endif

@@ -19,20 +19,20 @@
 
 #include <algorithm>
 #include <array>
-#include <capstone/capstone.h>
-#include <cstdint>
 #include <cassert>
-#include <iostream>
+#include <cstdint>
 #include <functional>
+#include <iostream>
 #include <limits>
-#include <vector>
 #include <map>
-#include <unordered_map>
+#include <vector>
 
 #include "branch_type.h"
-#include "trace_instruction.h"
-#include "regfile.h"
 #include "prefetch.h"
+#include "regfile.h"
+#include "trace_instruction.h"
+#include <capstone/capstone.h>
+#include <unordered_map>
 
 #define PRINT_TRACE_IP 0xffffffffffffffff
 #define nPRINT_TRACE_INFO
@@ -44,10 +44,10 @@
 #define nCOLLECT_SAME_SRC
 #define nCOLLECT_USELESS
 
-#define LOAD_TYPE_NONE              0
-#define LOAD_TYPE_ORIGINAL_STRIDE   1
+#define LOAD_TYPE_NONE 0
+#define LOAD_TYPE_ORIGINAL_STRIDE 1
 #define LOAD_TYPE_ORIGINAL_PT_CHAIN 2
-#define LOAD_TYPE_INFECTED_STRIDE   3
+#define LOAD_TYPE_INFECTED_STRIDE 3
 #define LOAD_TYPE_INFECTED_PT_CHAIN 4
 
 extern uint64_t total_inst_num;
@@ -61,12 +61,12 @@ typedef struct load_info {
   uint64_t total_count;
   uint64_t last_vaddr;
 
-  int64_t  stride;
-  uint8_t  stride_conf;
+  int64_t stride;
+  uint8_t stride_conf;
   uint64_t stride_count;
 
-  uint8_t  pt_conf;
-  int64_t  pt_offset;
+  uint8_t pt_conf;
+  int64_t pt_offset;
   uint64_t last_res;
   uint64_t pt_count;
 
@@ -122,47 +122,48 @@ struct ooo_model_instr {
   uint64_t source_reg_val[NUM_INSTR_SOURCES] = {};
   uint64_t ret_val = 0; // if destination_registers isn't 0, the register will be updated to ret_val.
   uint8_t ls_size = 0;
-  #ifdef MISS_COLLECT_INFO
-    uint8_t load_type = IDM_INVALID;
-  #endif
+#ifdef MISS_COLLECT_INFO
+  uint8_t load_type = IDM_INVALID;
+#endif
 
   // these are indices of instructions in the ROB that depend on me
   std::vector<std::reference_wrapper<ooo_model_instr>> registers_instrs_depend_on_me;
 
-  void prinf_info(){
+  void prinf_info()
+  {
 
     char msg[32];
     printf("op: %d, pc: %#lx, inst: %s, 0x%08x\n", op, this->ip, msg, this->inst);
 
-    //register
+    // register
     printf("source_registers     : %02d", this->source_registers[0]);
-    for(uint64_t i = 1; i < NUM_INSTR_SOURCES; i++){
+    for (uint64_t i = 1; i < NUM_INSTR_SOURCES; i++) {
       printf(", %02d", this->source_registers[i]);
     }
     printf("\ndestination_registers: %02d", this->destination_registers[0]);
-    for(uint64_t i = 1; i < NUM_INSTR_DESTINATIONS_SPARC; i++){
+    for (uint64_t i = 1; i < NUM_INSTR_DESTINATIONS_SPARC; i++) {
       printf(", %02d", this->destination_registers[i]);
     }
 
     // memory
     printf("\nsource_memory     : %#lx", this->source_memory[0]);
-    for(uint64_t i = 1; i < NUM_INSTR_SOURCES; i++){
+    for (uint64_t i = 1; i < NUM_INSTR_SOURCES; i++) {
       printf(", %#lx", this->source_memory[i]);
     }
     printf("\ndestination_memory: %#lx", this->destination_memory[0]);
-    for(uint64_t i = 1; i < NUM_INSTR_DESTINATIONS_SPARC; i++){
+    for (uint64_t i = 1; i < NUM_INSTR_DESTINATIONS_SPARC; i++) {
       printf(", %#lx", this->destination_memory[i]);
     }
 
     // source register value
     printf("\nsource_reg_val: %#lx", this->source_reg_val[0]);
-    for(uint64_t i = 1; i < NUM_INSTR_SOURCES; i++){
+    for (uint64_t i = 1; i < NUM_INSTR_SOURCES; i++) {
       printf(", %#lx", this->source_reg_val[i]);
     }
 
-    //printf("imm[0]: %d, imm[1]: %d\n", this->imm[0], this->imm[1]);
+    // printf("imm[0]: %d, imm[1]: %d\n", this->imm[0], this->imm[1]);
     printf("\nret_val: 0x%016lx\n", this->ret_val);
-    printf("is_branch: %d, branch_taken: %d\n\n", this->is_branch, this->branch_taken); 
+    printf("is_branch: %d, branch_taken: %d\n\n", this->is_branch, this->branch_taken);
   }
 
 private:
@@ -228,15 +229,16 @@ public:
   ooo_model_instr(uint8_t cpu, input_instr instr) : ooo_model_instr(instr, {cpu, cpu}) {}
   ooo_model_instr(uint8_t, cloudsuite_instr instr) : ooo_model_instr(instr, {instr.asid[0], instr.asid[1]}) {}
 
-  ooo_model_instr(uint8_t cpu, riscv_instr instr) : ooo_model_instr(instr, {cpu, cpu}) {
+  ooo_model_instr(uint8_t cpu, riscv_instr instr) : ooo_model_instr(instr, {cpu, cpu})
+  {
     this->ret_val = instr.ret_val;
     this->inst = instr.inst;
 
     branch_type = instr.is_branch;
 
     csh handle;
-    cs_insn *insn;
-    auto code = reinterpret_cast<const uint8_t *>(&instr.inst);
+    cs_insn* insn;
+    auto code = reinterpret_cast<const uint8_t*>(&instr.inst);
     auto size = sizeof(instr.inst);
 
     auto err = cs_open(CS_ARCH_RISCV, CS_MODE_RISCV64, &handle);
@@ -246,8 +248,8 @@ public:
 
     err = cs_option(handle, CS_OPT_DETAIL, CS_OPT_ON);
     if (err) {
-        cs_close(&handle);
-        throw std::runtime_error("cs_option: "s + cs_strerror(err));
+      cs_close(&handle);
+      throw std::runtime_error("cs_option: "s + cs_strerror(err));
     }
 
     auto success = cs_disasm(handle, code, size, instr.ip, 1, &insn);
@@ -523,16 +525,14 @@ public:
     }
 
     for (uint8_t i = 0; i < insn->detail->riscv.op_count; i++) {
-      if (insn->detail->riscv.operands[i].access & CS_AC_READ &&
-          insn->detail->riscv.operands[i].type == RISCV_OP_REG) {
+      if (insn->detail->riscv.operands[i].access & CS_AC_READ && insn->detail->riscv.operands[i].type == RISCV_OP_REG) {
         *source_reg_valp = regfile[cpu].read(insn->detail->riscv.operands[i].reg);
         source_reg_valp++;
       }
     }
 
     for (uint8_t i = 0; i < insn->detail->riscv.op_count; i++) {
-      if (insn->detail->riscv.operands[i].access & CS_AC_READ &&
-          insn->detail->riscv.operands[i].type == RISCV_OP_IMM) {
+      if (insn->detail->riscv.operands[i].access & CS_AC_READ && insn->detail->riscv.operands[i].type == RISCV_OP_IMM) {
         *source_reg_valp = insn->detail->riscv.operands[i].imm;
         source_reg_valp++;
       }
@@ -542,8 +542,7 @@ public:
       regfile[cpu].write(insn->detail->regs_write[0], ret_val);
     } else {
       for (uint8_t i = 0; i < insn->detail->riscv.op_count; i++) {
-        if (insn->detail->riscv.operands[i].access & CS_AC_WRITE &&
-            insn->detail->riscv.operands[i].type == RISCV_OP_REG) {
+        if (insn->detail->riscv.operands[i].access & CS_AC_WRITE && insn->detail->riscv.operands[i].type == RISCV_OP_REG) {
           regfile[cpu].write(insn->detail->riscv.operands[i].reg, ret_val);
           break;
         }
@@ -552,149 +551,144 @@ public:
 
     cs_free(insn, 1);
 
-
-    #ifdef PRINT_TRACE_INFO
+#ifdef PRINT_TRACE_INFO
+    prinf_info();
+#endif
+    if (instr.ip == PRINT_TRACE_IP)
       prinf_info();
-    #endif
-    if(instr.ip == PRINT_TRACE_IP)
-      prinf_info();
 
-    #ifdef COLLECT_INFO
-      collect_info(instr);
-    #endif
+#ifdef COLLECT_INFO
+    collect_info(instr);
+#endif
   }
 
-  void collect_info(riscv_instr instr){
+  void collect_info(riscv_instr instr)
+  {
     total_inst_num++;
     bool is_load = idm_op_is_load(op);
     uint8_t cur_load_type = LOAD_TYPE_NONE;
 
-    if(is_load){
-        total_load_num++;
+    if (is_load) {
+      total_load_num++;
 
-        uint64_t pc = instr.ip;
-        uint64_t vaddr = instr.source_memory[0];
-        uint64_t res = instr.ret_val;
+      uint64_t pc = instr.ip;
+      uint64_t vaddr = instr.source_memory[0];
+      uint64_t res = instr.ret_val;
 
-        std::unordered_map<uint64_t, load_info_t>::iterator hit_item;
-        hit_item = pc_info.find(pc);
-        if(hit_item != pc_info.end()){
-            uint64_t old_vaddr = hit_item->second.last_vaddr;
-            int64_t  old_stride = hit_item->second.stride;
-            uint64_t old_stride_conf = hit_item->second.stride_conf;
-            uint64_t old_res = hit_item->second.last_res;
-            uint8_t  old_pt_conf = hit_item->second.pt_conf;
-            int64_t  old_pt_offset = hit_item->second.pt_offset;
+      std::unordered_map<uint64_t, load_info_t>::iterator hit_item;
+      hit_item = pc_info.find(pc);
+      if (hit_item != pc_info.end()) {
+        uint64_t old_vaddr = hit_item->second.last_vaddr;
+        int64_t old_stride = hit_item->second.stride;
+        uint64_t old_stride_conf = hit_item->second.stride_conf;
+        uint64_t old_res = hit_item->second.last_res;
+        uint8_t old_pt_conf = hit_item->second.pt_conf;
+        int64_t old_pt_offset = hit_item->second.pt_offset;
 
-            // Update
-            hit_item->second.last_vaddr = vaddr;
-            hit_item->second.last_res = res;
-            hit_item->second.total_count += 1;
+        // Update
+        hit_item->second.last_vaddr = vaddr;
+        hit_item->second.last_res = res;
+        hit_item->second.total_count += 1;
 
-
-            // Stride
-            int64_t stride = vaddr - old_vaddr;
-            if(stride == 0) {
-                hit_item->second.stride_conf = old_stride_conf;
-            } else if(old_stride_conf == 1) {
-                hit_item->second.stride_conf = 2;
-            } else if(stride == old_stride){
-                if(old_stride_conf < 3)
-                    hit_item->second.stride_conf += 1;
-            } else{
-                if(old_stride_conf > 0)
-                    hit_item->second.stride_conf -= 1;
-            }
-
-            if(old_stride_conf == 1)
-                hit_item->second.stride = stride;
-
-            if(old_stride_conf > 1 && stride == old_stride && stride != 0){ // TODO: conf2 && stride==old_stride || conf3
-                hit_item->second.stride_count += 1;
-
-                // TODO:
-                cur_load_type = LOAD_TYPE_ORIGINAL_STRIDE;
-            }
-
-            // Pointer Chain
-            int64_t pt_offset = vaddr - old_res;
-            bool same_addr = vaddr == old_vaddr; // TO aviod the same vaddr & the same ret_val
-
-            if(same_addr){
-                hit_item->second.pt_conf = hit_item->second.pt_conf;
-            } else if(old_pt_conf == 1){
-                hit_item->second.pt_conf = 2;
-            } else if(pt_offset == old_pt_offset){
-                if(old_pt_conf < 3)
-                    hit_item->second.pt_conf += 1;
-            } else{
-                if(old_pt_conf > 0){
-                    hit_item->second.pt_conf -= 1;
-                }
-            }
-
-            if(old_pt_conf == 1)
-                hit_item->second.pt_offset = pt_offset;
-
-            if(old_pt_conf > 1 && pt_offset == old_pt_offset && !same_addr){ // TODO: conf2 && offset==old_offset || conf3
-                hit_item->second.pt_count += 1;
-
-                // TODO:
-                cur_load_type = LOAD_TYPE_ORIGINAL_PT_CHAIN;
-            }
-        } else { // First Encounter
-            load_info_t new_info = {};
-            new_info.total_count  = 1;
-            new_info.last_vaddr   = vaddr;
-            new_info.stride       = 0;
-            new_info.stride_conf  = 1;
-            new_info.stride_count = 0;
-            new_info.pt_conf      = 1;
-            new_info.pt_offset    = 0;
-            new_info.last_res     = res;
-            new_info.pt_count     = 0;
-            new_info.dma_count    = 0;
-            pc_info.insert(std::pair<uint64_t, load_info_t>(pc, new_info));
+        // Stride
+        int64_t stride = vaddr - old_vaddr;
+        if (stride == 0) {
+          hit_item->second.stride_conf = old_stride_conf;
+        } else if (old_stride_conf == 1) {
+          hit_item->second.stride_conf = 2;
+        } else if (stride == old_stride) {
+          if (old_stride_conf < 3)
+            hit_item->second.stride_conf += 1;
+        } else {
+          if (old_stride_conf > 0)
+            hit_item->second.stride_conf -= 1;
         }
+
+        if (old_stride_conf == 1)
+          hit_item->second.stride = stride;
+
+        if (old_stride_conf > 1 && stride == old_stride && stride != 0) { // TODO: conf2 && stride==old_stride || conf3
+          hit_item->second.stride_count += 1;
+
+          // TODO:
+          cur_load_type = LOAD_TYPE_ORIGINAL_STRIDE;
+        }
+
+        // Pointer Chain
+        int64_t pt_offset = vaddr - old_res;
+        bool same_addr = vaddr == old_vaddr; // TO aviod the same vaddr & the same ret_val
+
+        if (same_addr) {
+          hit_item->second.pt_conf = hit_item->second.pt_conf;
+        } else if (old_pt_conf == 1) {
+          hit_item->second.pt_conf = 2;
+        } else if (pt_offset == old_pt_offset) {
+          if (old_pt_conf < 3)
+            hit_item->second.pt_conf += 1;
+        } else {
+          if (old_pt_conf > 0) {
+            hit_item->second.pt_conf -= 1;
+          }
+        }
+
+        if (old_pt_conf == 1)
+          hit_item->second.pt_offset = pt_offset;
+
+        if (old_pt_conf > 1 && pt_offset == old_pt_offset && !same_addr) { // TODO: conf2 && offset==old_offset || conf3
+          hit_item->second.pt_count += 1;
+
+          // TODO:
+          cur_load_type = LOAD_TYPE_ORIGINAL_PT_CHAIN;
+        }
+      } else { // First Encounter
+        load_info_t new_info = {};
+        new_info.total_count = 1;
+        new_info.last_vaddr = vaddr;
+        new_info.stride = 0;
+        new_info.stride_conf = 1;
+        new_info.stride_count = 0;
+        new_info.pt_conf = 1;
+        new_info.pt_offset = 0;
+        new_info.last_res = res;
+        new_info.pt_count = 0;
+        new_info.dma_count = 0;
+        pc_info.insert(std::pair<uint64_t, load_info_t>(pc, new_info));
+      }
     }
 
-    if(instr.ip==PRINT_TRACE_IP)
-        std::cout << "Info of pc:" << PRINT_TRACE_IP
-                  << "\n total_count : " <<  pc_info[instr.ip].total_count
-                  << "\n stride_conf : " << +pc_info[instr.ip].stride_conf
-                  << "\n stride_count: " <<  pc_info[instr.ip].stride_count
-                  << "\n pt_conf     : " << +pc_info[instr.ip].pt_conf
-                  << "\n pt_count    : " <<  pc_info[instr.ip].pt_count
-                  << "\n"<< std::endl;
+    if (instr.ip == PRINT_TRACE_IP)
+      std::cout << "Info of pc:" << PRINT_TRACE_IP << "\n total_count : " << pc_info[instr.ip].total_count
+                << "\n stride_conf : " << +pc_info[instr.ip].stride_conf << "\n stride_count: " << pc_info[instr.ip].stride_count
+                << "\n pt_conf     : " << +pc_info[instr.ip].pt_conf << "\n pt_count    : " << pc_info[instr.ip].pt_count << "\n"
+                << std::endl;
 
-
-    if(cur_load_type && instr.destination_registers[0]){
-        regfile_load_type[instr.destination_registers[0]] = cur_load_type;
-        regfile_op[instr.destination_registers[0]] = op;
+    if (cur_load_type && instr.destination_registers[0]) {
+      regfile_load_type[instr.destination_registers[0]] = cur_load_type;
+      regfile_op[instr.destination_registers[0]] = op;
     } else {
-        bool contain = false;
-        for(int i = 0; i < NUM_INSTR_SOURCES_RISCV; i++){
-            if(regfile_load_type[instr.source_registers[i]] != LOAD_TYPE_NONE && instr.source_registers[i]){
-                contain = true;
-                uint8_t type = LOAD_TYPE_NONE;
-                if(regfile_load_type[instr.source_registers[i]] == LOAD_TYPE_ORIGINAL_STRIDE){
-                    type = LOAD_TYPE_INFECTED_STRIDE;
-                } else if(regfile_load_type[instr.source_registers[i]] == LOAD_TYPE_ORIGINAL_PT_CHAIN){
-                    type = LOAD_TYPE_INFECTED_PT_CHAIN;
-                } else {
-                    type = regfile_load_type[instr.source_registers[i]];
-                }
-                regfile_load_type[instr.destination_registers[0]] = type;
-                regfile_op[instr.destination_registers[0]] = op;
-            }
+      bool contain = false;
+      for (int i = 0; i < NUM_INSTR_SOURCES_RISCV; i++) {
+        if (regfile_load_type[instr.source_registers[i]] != LOAD_TYPE_NONE && instr.source_registers[i]) {
+          contain = true;
+          uint8_t type = LOAD_TYPE_NONE;
+          if (regfile_load_type[instr.source_registers[i]] == LOAD_TYPE_ORIGINAL_STRIDE) {
+            type = LOAD_TYPE_INFECTED_STRIDE;
+          } else if (regfile_load_type[instr.source_registers[i]] == LOAD_TYPE_ORIGINAL_PT_CHAIN) {
+            type = LOAD_TYPE_INFECTED_PT_CHAIN;
+          } else {
+            type = regfile_load_type[instr.source_registers[i]];
+          }
+          regfile_load_type[instr.destination_registers[0]] = type;
+          regfile_op[instr.destination_registers[0]] = op;
         }
-        if(!contain && instr.destination_registers[0])
-            regfile_load_type[instr.destination_registers[0]] = LOAD_TYPE_NONE;
-        if(is_load && contain)
-            pc_info[instr.ip].dma_count++;
+      }
+      if (!contain && instr.destination_registers[0])
+        regfile_load_type[instr.destination_registers[0]] = LOAD_TYPE_NONE;
+      if (is_load && contain)
+        pc_info[instr.ip].dma_count++;
     }
 
-    return ;
+    return;
   }
 
   std::size_t num_mem_ops() const { return std::size(destination_memory) + std::size(source_memory); }

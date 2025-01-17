@@ -80,7 +80,7 @@ struct LSQ_ENTRY {
   uint64_t virtual_address = 0;
   uint64_t ip = 0;
   uint64_t event_cycle = 0;
-  
+
   // IDM
   uint64_t wdata = 0;
   uint8_t size = 0;
