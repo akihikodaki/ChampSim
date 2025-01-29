@@ -40,8 +40,8 @@ auto print_ratio(N num, D denom)
 
 std::vector<std::string> champsim::plain_printer::format(O3_CPU::stats_type stats)
 {
-  constexpr std::array types{branch_type::BRANCH_DIRECT_JUMP, branch_type::BRANCH_INDIRECT,      branch_type::BRANCH_CONDITIONAL,
-                             branch_type::BRANCH_DIRECT_CALL, branch_type::BRANCH_INDIRECT_CALL, branch_type::BRANCH_RETURN};
+  constexpr std::array types{branch_type::BRANCH_DIRECT_JUMP,   branch_type::BRANCH_INDIRECT, branch_type::BRANCH_CONDITIONAL, branch_type::BRANCH_DIRECT_CALL,
+                             branch_type::BRANCH_INDIRECT_CALL, branch_type::BRANCH_RETURN,   branch_type::BRANCH_YIELD};
   auto total_branch = std::ceil(
       std::accumulate(std::begin(types), std::end(types), 0LL, [tbt = stats.total_branch_types](auto acc, auto next) { return acc + tbt.value_or(next, 0); }));
   auto total_mispredictions = std::ceil(

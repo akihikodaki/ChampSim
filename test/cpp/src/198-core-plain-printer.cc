@@ -16,7 +16,8 @@ TEST_CASE("An empty core stats prints zero")
                                     "BRANCH_CONDITIONAL: -",
                                     "BRANCH_DIRECT_CALL: -",
                                     "BRANCH_INDIRECT_CALL: -",
-                                    "BRANCH_RETURN: -"};
+                                    "BRANCH_RETURN: -",
+                                    "BRANCH_YIELD: -"};
 
   REQUIRE_THAT(champsim::plain_printer::format(given), Catch::Matchers::RangeEquals(expected));
 }
@@ -38,7 +39,8 @@ TEST_CASE("The number of instructions and cycles modifies the IPC")
                                     "BRANCH_CONDITIONAL: 0",
                                     "BRANCH_DIRECT_CALL: 0",
                                     "BRANCH_INDIRECT_CALL: 0",
-                                    "BRANCH_RETURN: 0"};
+                                    "BRANCH_RETURN: 0",
+                                    "BRANCH_YIELD: 0"};
 
   REQUIRE_THAT(champsim::plain_printer::format(given), Catch::Matchers::RangeEquals(expected));
 }
@@ -46,11 +48,11 @@ TEST_CASE("The number of instructions and cycles modifies the IPC")
 TEST_CASE("The number of mispredictions modifies the MPKI")
 {
   auto num_misses = 255;
-  auto [line_index, miss_type, expected_line] =
-      GENERATE(as<std::tuple<std::size_t, branch_type, std::string>>{}, std::tuple{3, branch_type::BRANCH_DIRECT_JUMP, "BRANCH_DIRECT_JUMP: 255"},
-               std::tuple{4, branch_type::BRANCH_INDIRECT, "BRANCH_INDIRECT: 255"}, std::tuple{5, branch_type::BRANCH_CONDITIONAL, "BRANCH_CONDITIONAL: 255"},
-               std::tuple{6, branch_type::BRANCH_DIRECT_CALL, "BRANCH_DIRECT_CALL: 255"},
-               std::tuple{7, branch_type::BRANCH_INDIRECT_CALL, "BRANCH_INDIRECT_CALL: 255"}, std::tuple{8, branch_type::BRANCH_RETURN, "BRANCH_RETURN: 255"});
+  auto [line_index, miss_type, expected_line] = GENERATE(
+      as<std::tuple<std::size_t, branch_type, std::string>>{}, std::tuple{3, branch_type::BRANCH_DIRECT_JUMP, "BRANCH_DIRECT_JUMP: 255"},
+      std::tuple{4, branch_type::BRANCH_INDIRECT, "BRANCH_INDIRECT: 255"}, std::tuple{5, branch_type::BRANCH_CONDITIONAL, "BRANCH_CONDITIONAL: 255"},
+      std::tuple{6, branch_type::BRANCH_DIRECT_CALL, "BRANCH_DIRECT_CALL: 255"}, std::tuple{7, branch_type::BRANCH_INDIRECT_CALL, "BRANCH_INDIRECT_CALL: 255"},
+      std::tuple{8, branch_type::BRANCH_RETURN, "BRANCH_RETURN: 255"}, std::tuple{9, branch_type::BRANCH_YIELD, "BRANCH_YIELD: 255"});
 
   cpu_stats given{};
   given.name = "test_cpu";
@@ -69,7 +71,8 @@ TEST_CASE("The number of mispredictions modifies the MPKI")
                                     "BRANCH_CONDITIONAL: 0",
                                     "BRANCH_DIRECT_CALL: 0",
                                     "BRANCH_INDIRECT_CALL: 0",
-                                    "BRANCH_RETURN: 0"};
+                                    "BRANCH_RETURN: 0",
+                                    "BRANCH_YIELD: 0"};
   expected.at(line_index) = expected_line;
 
   REQUIRE_THAT(champsim::plain_printer::format(given), Catch::Matchers::RangeEquals(expected));
@@ -97,7 +100,8 @@ TEST_CASE("The ROB occupancy modifies the flush penalty")
                                     "BRANCH_CONDITIONAL: 0",
                                     "BRANCH_DIRECT_CALL: 0",
                                     "BRANCH_INDIRECT_CALL: 0",
-                                    "BRANCH_RETURN: 0"};
+                                    "BRANCH_RETURN: 0",
+                                    "BRANCH_YIELD: 0"};
 
   REQUIRE_THAT(champsim::plain_printer::format(given), Catch::Matchers::RangeEquals(expected));
 }

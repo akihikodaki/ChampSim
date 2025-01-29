@@ -13,7 +13,7 @@ void direct_predictor::update(champsim::address ip, champsim::address branch_tar
   auto type = branch_info::ALWAYS_TAKEN;
   if ((branch_type == BRANCH_INDIRECT) || (branch_type == BRANCH_INDIRECT_CALL))
     type = branch_info::INDIRECT;
-  else if (branch_type == BRANCH_RETURN)
+  else if ((branch_type == BRANCH_RETURN) || (branch_type == BRANCH_YIELD))
     type = branch_info::RETURN;
   else if (branch_type == BRANCH_CONDITIONAL)
     type = branch_info::CONDITIONAL;

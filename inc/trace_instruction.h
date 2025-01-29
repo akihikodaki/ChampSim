@@ -49,6 +49,11 @@ constexpr const char* reg_names[] = {
     "g7",      "g8",        "g9",           "g10",     "g11",     "g12",     "g13",      "g14",      "g15"};
 } // namespace champsim
 
+#define TRACE_TYPE_INVALID 0
+#define TRACE_TYPE_X86 1
+#define TRACE_TYPE_RISCV 2
+#define TRACE_TYPE_CLOUDSUITE 3
+
 // instruction format
 constexpr std::size_t NUM_INSTR_DESTINATIONS_SPARC = 4;
 constexpr std::size_t NUM_INSTR_DESTINATIONS = 2;
@@ -87,5 +92,22 @@ struct cloudsuite_instr {
   unsigned char asid[2];
 };
 // NOLINTEND(cppcoreguidelines-avoid-c-arrays,modernize-avoid-c-arrays)
+
+#define NUM_INSTR_DESTINATIONS_RISCV 1
+#define NUM_INSTR_SOURCES_RISCV 3
+
+struct riscv_instr {
+  unsigned long long int ip;                                               // instruction pointer (program counter) value
+  unsigned long long int destination_memory[NUM_INSTR_DESTINATIONS_RISCV]; // output memory
+  unsigned long long int source_memory[NUM_INSTR_SOURCES_RISCV];           // input memory
+  unsigned long long ret_val;
+  unsigned int inst;
+  // unsigned short op;
+  unsigned char is_branch;    // is this branch
+  unsigned char branch_taken; // if so, is this taken
+
+  unsigned char destination_registers[NUM_INSTR_DESTINATIONS_RISCV]; // output registers
+  unsigned char source_registers[NUM_INSTR_SOURCES_RISCV];           // input registers
+};
 
 #endif

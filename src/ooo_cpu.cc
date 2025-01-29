@@ -24,6 +24,7 @@
 #include <fmt/core.h>
 #include <fmt/ranges.h>
 
+#include "arch.h"
 #include "cache.h"
 #include "champsim.h"
 #include "deadlock.h"
@@ -112,17 +113,18 @@ void do_stack_pointer_folding(ooo_model_instr& arch_instr)
 {
   // The exact, true value of the stack pointer for any given instruction can usually be determined immediately after the instruction is decoded without
   // waiting for the stack pointer's dependency chain to be resolved.
-  bool writes_sp = (std::count(std::begin(arch_instr.destination_registers), std::end(arch_instr.destination_registers), champsim::REG_STACK_POINTER) > 0);
+  bool writes_sp = (std::count(std::begin(arch_instr.destination_registers), std::end(arch_instr.destination_registers), champsim::arch.reg_stack_pointer) > 0);
   if (writes_sp) {
     // Avoid creating register dependencies on the stack pointer for calls, returns, pushes, and pops, but not for variable-sized changes in the
     // stack pointer position. reads_other indicates that the stack pointer is being changed by a variable amount, which can't be determined before
     // execution.
     bool reads_other =
-        (std::count_if(std::begin(arch_instr.source_registers), std::end(arch_instr.source_registers),
-                       [](auto r) { return r != champsim::REG_STACK_POINTER && r != champsim::REG_FLAGS && r != champsim::REG_INSTRUCTION_POINTER; })
+        (std::count_if(
+             std::begin(arch_instr.source_registers), std::end(arch_instr.source_registers),
+             [](auto r) { return r != champsim::arch.reg_stack_pointer && r != champsim::arch.reg_flags && r != champsim::arch.reg_instruction_pointer; })
          > 0);
     if ((arch_instr.is_branch) || !(std::empty(arch_instr.destination_memory) && std::empty(arch_instr.source_memory)) || (!reads_other)) {
-      auto nonsp_end = std::remove(std::begin(arch_instr.destination_registers), std::end(arch_instr.destination_registers), champsim::REG_STACK_POINTER);
+      auto nonsp_end = std::remove(std::begin(arch_instr.destination_registers), std::end(arch_instr.destination_registers), champsim::arch.reg_stack_pointer);
       arch_instr.destination_registers.erase(nonsp_end, std::end(arch_instr.destination_registers));
       arch_instr.stack_pointer_folded = true;
     }

@@ -30,8 +30,11 @@ std::pair<champsim::address, bool> basic_btb::btb_prediction(champsim::address i
 
 void basic_btb::update_btb(champsim::address ip, champsim::address branch_target, bool taken, uint8_t branch_type)
 {
+  if (branch_type == BRANCH_RETURN || branch_type == BRANCH_YIELD)
+    ras.calibrate_call_size(branch_target);
+
   // add something to the RAS
-  if (branch_type == BRANCH_DIRECT_CALL || branch_type == BRANCH_INDIRECT_CALL)
+  if (branch_type == BRANCH_DIRECT_CALL || branch_type == BRANCH_INDIRECT_CALL || branch_type == BRANCH_YIELD)
     ras.push(ip);
 
   // updates for indirect branches
@@ -40,9 +43,6 @@ void basic_btb::update_btb(champsim::address ip, champsim::address branch_target
 
   if (branch_type == BRANCH_CONDITIONAL)
     indirect.update_direction(taken);
-
-  if (branch_type == BRANCH_RETURN)
-    ras.calibrate_call_size(branch_target);
 
   direct.update(ip, branch_target, branch_type);
 }

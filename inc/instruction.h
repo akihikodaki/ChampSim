@@ -22,6 +22,7 @@
 #include <cstdint>
 #include <functional>
 #include <limits>
+#include <optional>
 #include <string_view>
 #include <vector>
 
@@ -38,15 +39,17 @@ enum branch_type {
   BRANCH_DIRECT_CALL,
   BRANCH_INDIRECT_CALL,
   BRANCH_RETURN,
+  BRANCH_YIELD,
   BRANCH_OTHER,
   NOT_BRANCH
 };
 
 using PHYSICAL_REGISTER_ID = int16_t; // signed to use -1 to indicate no physical register
 
+using namespace std::literals::string_literals;
 using namespace std::literals::string_view_literals;
-inline constexpr std::array branch_type_names{"BRANCH_DIRECT_JUMP"sv, "BRANCH_INDIRECT"sv,      "BRANCH_CONDITIONAL"sv,
-                                              "BRANCH_DIRECT_CALL"sv, "BRANCH_INDIRECT_CALL"sv, "BRANCH_RETURN"sv};
+inline constexpr std::array branch_type_names{"BRANCH_DIRECT_JUMP"sv,   "BRANCH_INDIRECT"sv, "BRANCH_CONDITIONAL"sv, "BRANCH_DIRECT_CALL"sv,
+                                              "BRANCH_INDIRECT_CALL"sv, "BRANCH_RETURN"sv,   "BRANCH_YIELD"sv};
 
 namespace champsim
 {
@@ -126,6 +129,8 @@ struct ooo_model_instr : champsim::program_ordered<ooo_model_instr> {
   std::vector<champsim::address> destination_memory = {};
   std::vector<champsim::address> source_memory = {};
 
+  std::optional<uint32_t> inst;
+
   // these are indices of instructions in the ROB that depend on me
   std::vector<std::reference_wrapper<ooo_model_instr>> registers_instrs_depend_on_me;
 
@@ -195,6 +200,8 @@ private:
 public:
   ooo_model_instr(uint8_t cpu, input_instr instr) : ooo_model_instr(instr, {cpu, cpu}) {}
   ooo_model_instr(uint8_t /*cpu*/, cloudsuite_instr instr) : ooo_model_instr(instr, {instr.asid[0], instr.asid[1]}) {}
+
+  ooo_model_instr(uint8_t cpu, riscv_instr instr) : ooo_model_instr(instr, {cpu, cpu}) { branch = static_cast<branch_type>(instr.is_branch); }
 
   [[nodiscard]] std::size_t num_mem_ops() const { return std::size(destination_memory) + std::size(source_memory); }
 };

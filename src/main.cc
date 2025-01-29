@@ -22,6 +22,7 @@
 #include <CLI/CLI.hpp>
 #include <fmt/core.h>
 
+#include "arch.h"
 #include "cache.h" // for CACHE
 #include "champsim.h"
 #ifndef CHAMPSIM_TEST_BUILD
@@ -36,8 +37,11 @@
 #include "tracereader.h"
 #include "vmem.h"
 
+uint8_t trace_type = TRACE_TYPE_INVALID;
+
 namespace champsim
 {
+Arch arch;
 std::vector<phase_stats> main(environment& env, std::vector<phase_info>& phases, std::vector<tracereader>& traces);
 }
 
@@ -60,6 +64,7 @@ int main(int argc, char** argv) // NOLINT(bugprone-exception-escape)
   CLI::App app{"A microarchitecture simulator for research and education"};
 
   bool knob_cloudsuite{false};
+  bool knob_riscv{false};
   long long warmup_instructions = 0;
   long long simulation_instructions = std::numeric_limits<long long>::max();
   std::string json_file_name;
@@ -73,6 +78,7 @@ int main(int argc, char** argv) // NOLINT(bugprone-exception-escape)
   };
 
   app.add_flag("-c,--cloudsuite", knob_cloudsuite, "Read all traces using the cloudsuite format");
+  app.add_flag("-r,--riscv", knob_riscv, "Read all traces using the RISC-V format");
   app.add_flag("--hide-heartbeat", set_heartbeat_callback, "Hide the heartbeat output");
   auto* warmup_instr_option = app.add_option("-w,--warmup-instructions", warmup_instructions, "The number of instructions in the warmup phase");
   auto* deprec_warmup_instr_option =
@@ -112,10 +118,28 @@ int main(int argc, char** argv) // NOLINT(bugprone-exception-escape)
     warmup_instructions = simulation_instructions / 5;
   }
 
+  if (knob_cloudsuite && knob_riscv) {
+    fmt::print("Both CloudSuite and RISC-V formats are requested. Choose either of them.\n");
+    return 1;
+  }
+
+  if (knob_cloudsuite) {
+    trace_type = TRACE_TYPE_CLOUDSUITE;
+  } else if (knob_riscv) {
+    trace_type = TRACE_TYPE_RISCV;
+  } else {
+    trace_type = TRACE_TYPE_X86;
+  }
+
+  if (trace_type == TRACE_TYPE_RISCV) {
+    champsim::arch = {2, UINT8_MAX, UINT8_MAX};
+  } else {
+    champsim::arch = {champsim::REG_STACK_POINTER, champsim::REG_FLAGS, champsim::REG_INSTRUCTION_POINTER};
+  }
+
   std::vector<champsim::tracereader> traces;
-  std::transform(
-      std::begin(trace_names), std::end(trace_names), std::back_inserter(traces),
-      [knob_cloudsuite, repeat = simulation_given, i = uint8_t(0)](auto name) mutable { return get_tracereader(name, i++, knob_cloudsuite, repeat); });
+  std::transform(std::begin(trace_names), std::end(trace_names), std::back_inserter(traces),
+                 [repeat = simulation_given, i = uint8_t(0)](auto name) mutable { return get_tracereader(name, i++, trace_type, repeat); });
 
   std::vector<champsim::phase_info> phases{
       {champsim::phase_info{"Warmup", true, warmup_instructions, std::vector<std::size_t>(std::size(trace_names), 0), trace_names},

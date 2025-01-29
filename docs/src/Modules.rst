@@ -69,6 +69,7 @@ A branch predictor module may implement three functions.
      * ``BRANCH_DIRECT_CALL``: A call to a procedure whose target is encoded in the instruction
      * ``BRANCH_INDIRECT_CALL``: A call to a procedure whose target is stored in a register
      * ``BRANCH_RETURN``: A return to a calling procedure
+     * ``BRANCH_YIELD``: A switch between two coroutines
      * ``BRANCH_OTHER``: If the branch type cannot be determined
 
    :return: This function must return true if the branch is predicted taken, and false otherwise.
@@ -104,6 +105,7 @@ A BTB module may implement three functions.
      * ``BRANCH_DIRECT_CALL``: A call to a procedure whose target is encoded in the instruction
      * ``BRANCH_INDIRECT_CALL``: A call to a procedure whose target is stored in a register
      * ``BRANCH_RETURN``: A return to a calling procedure
+     * ``BRANCH_YIELD``: A switch between two coroutines
      * ``BRANCH_OTHER``: If the branch type cannot be determined
 
    :return: The function should return a pair containing the predicted address and a boolean that describes if the branch is known to be always taken.
@@ -125,6 +127,7 @@ A BTB module may implement three functions.
      * ``BRANCH_DIRECT_CALL``: A call to a procedure whose target is encoded in the instruction
      * ``BRANCH_INDIRECT_CALL``: A call to a procedure whose target is stored in a register
      * ``BRANCH_RETURN``: A return to a calling procedure
+     * ``BRANCH_YIELD``: A switch between two coroutines
      * ``BRANCH_OTHER``: If the branch type cannot be determined
 
 -----------------------------------
@@ -211,6 +214,7 @@ A prefetcher module may implement five or six functions.
      * ``BRANCH_DIRECT_CALL``: A call to a procedure whose target is encoded in the instruction
      * ``BRANCH_INDIRECT_CALL``: A call to a procedure whose target is stored in a register
      * ``BRANCH_RETURN``: A return to a calling procedure
+     * ``BRANCH_YIELD``: A switch between two coroutines
      * ``BRANCH_OTHER``: If the branch type cannot be determined
 
    :param branch_target: The instruction pointer of the target

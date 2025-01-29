@@ -59,6 +59,7 @@ This function is called when a prediction is needed. The parameters passed are:
   * `BRANCH_DIRECT_CALL`: A call to a procedure whose target is encoded in the instruction
   * `BRANCH_INDIRECT_CALL`: A call to a procedure whose target is stored in a register
   * `BRANCH_RETURN`: A return to a calling procedure
+  * `BRANCH_YIELD`: A switch between two coroutines
   * `BRANCH_OTHER`: If the branch type cannot be determined
 
 ::
@@ -108,6 +109,7 @@ This function is called when a branch is resolved. The parameters are:
   * `BRANCH_DIRECT_CALL`: A call to a procedure whose target is encoded in the instruction
   * `BRANCH_INDIRECT_CALL`: A call to a procedure whose target is stored in a register
   * `BRANCH_RETURN`: A return to a calling procedure
+  * `BRANCH_YIELD`: A switch between two coroutines
   * `BRANCH_OTHER`: If the branch type cannot be determined
 
 -----------------------------------
@@ -187,6 +189,7 @@ This function must be implemented by instruction prefetchers. The parameters pas
   * `BRANCH_DIRECT_CALL`: A call to a procedure whose target is encoded in the instruction
   * `BRANCH_INDIRECT_CALL`: A call to a procedure whose target is stored in a register
   * `BRANCH_RETURN`: A return to a calling procedure
+  * `BRANCH_YIELD`: A switch between two coroutines
   * `BRANCH_OTHER`: If the branch type cannot be determined
 
 * branch_target: The instruction pointer of the target

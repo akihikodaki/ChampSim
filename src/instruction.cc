@@ -16,9 +16,69 @@
 
 #include "instruction.h"
 
+#include <capstone/capstone.h>
+
 std::ostream& operator<<(std::ostream& os, const ooo_model_instr& instr)
 {
   fmt::print(os, "{}: ", instr.ip);
+
+  if (instr.inst) {
+    csh handle;
+    cs_insn* insn;
+    auto code = reinterpret_cast<const uint8_t*>(&(*instr.inst));
+    auto size = sizeof(*instr.inst);
+
+    auto err = cs_open(CS_ARCH_RISCV, CS_MODE_RISCV64, &handle);
+    if (err)
+      throw std::runtime_error("cs_open: "s + cs_strerror(err));
+
+    if (!cs_disasm(handle, code, size, instr.ip.to<uint64_t>(), 1, &insn)) {
+      err = cs_errno(handle);
+      cs_close(&handle);
+      throw std::invalid_argument("cs_disasm: "s + cs_strerror(err));
+    }
+
+    cs_close(&handle);
+
+    fmt::print(os, insn->mnemonic);
+    fmt::print(os, " ");
+    fmt::print(os, insn->op_str);
+
+    if (instr.branch_mispredicted || instr.stack_pointer_folded || !instr.destination_memory.empty() || !instr.source_memory.empty()) {
+      fmt::print(os, " # ");
+
+      bool needs_comma = false;
+      if (instr.branch_mispredicted) {
+        if (needs_comma)
+          fmt::print(os, ", ");
+        fmt::print(os, "pc mispredicted");
+        needs_comma = true;
+      }
+
+      if (instr.stack_pointer_folded) {
+        if (needs_comma)
+          fmt::print(os, ", ");
+        fmt::print(os, "sp folded");
+        needs_comma = true;
+      }
+
+      for (auto a : instr.destination_memory) {
+        if (needs_comma)
+          fmt::print(os, ", ");
+        fmt::print(os, "stores {}", a);
+        needs_comma = true;
+      }
+
+      for (auto a : instr.source_memory) {
+        if (needs_comma)
+          fmt::print(os, ", ");
+        fmt::print(os, "loads {}", a);
+        needs_comma = true;
+      }
+    }
+
+    return os;
+  }
 
   if (instr.destination_registers.empty() && instr.destination_memory.empty()) {
     fmt::print(os, "NOP     ");
@@ -47,6 +107,9 @@ std::ostream& operator<<(std::ostream& os, const ooo_model_instr& instr)
       break;
     case BRANCH_OTHER:
       fmt::print(os, "OtherBr  ");
+      break;
+    case BRANCH_YIELD:
+      fmt::print(os, "Yield   ");
       break;
     }
 
