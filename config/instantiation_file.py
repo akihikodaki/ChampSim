@@ -52,7 +52,7 @@ core_builder_parts = {
     'dib_way': '  .dib_way({dib_way})',
     'dib_window': '  .dib_window({dib_window})',
     'L1I': ['.l1i(&{^l1i_ptr})', '.l1i_bandwidth({^l1i_ptr}.MAX_TAG)', '.fetch_queues(&{^fetch_queues})'],
-    'L1D': ['.l1d_bandwidth({^l1d_ptr}.MAX_TAG)', '.data_queues(&{^data_queues})'],
+    'L1D': ['.l1d(&{^l1d_ptr})', '.l1d_bandwidth({^l1d_ptr}.MAX_TAG)', '.data_queues(&{^data_queues})'],
     '_branch_predictor_data': '.branch_predictor<{^branch_predictor_string}>()',
     '_btb_data': '.btb<{^btb_string}>()',
     '_index': '.index({_index})',

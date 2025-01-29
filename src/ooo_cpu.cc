@@ -175,6 +175,16 @@ bool O3_CPU::do_predict_branch(ooo_model_instr& arch_instr)
 
 bool O3_CPU::do_init_instruction(ooo_model_instr& arch_instr)
 {
+  for (uint8_t i = 0; i < arch_instr.source_registers.size(); i++) {
+    auto source_register = static_cast<uint8_t>(arch_instr.source_registers[i]);
+    arch_instr.source_reg_val[i] = regfile.read(source_register);
+  }
+
+  if (!arch_instr.destination_registers.empty()) {
+    auto destination_register = static_cast<uint8_t>(arch_instr.destination_registers[0]);
+    regfile.write(destination_register, arch_instr.ret_val);
+  }
+
   // fast warmup eliminates register dependencies between instructions branch predictor, cache contents, and prefetchers are still warmed up
   if (warmup) {
     arch_instr.source_registers.clear();
@@ -369,6 +379,9 @@ long O3_CPU::decode_instruction()
         this->fetch_resume_time = this->current_time + BRANCH_MISPREDICT_PENALTY;
       }
     }
+
+    l1d->impl_prefetcher_decode(db_entry);
+
     // Add to dispatch
     db_entry.ready_time = this->current_time + (this->warmup ? champsim::chrono::clock::duration{} : this->DISPATCH_LATENCY);
     handle_event<Event::DISPATCH>(*this, db_entry);
@@ -493,6 +506,8 @@ void O3_CPU::do_execution(ooo_model_instr& instr)
   for (auto& sq_entry : SQ) {
     if (sq_entry.instr_id == instr.instr_id) {
       sq_entry.ready_time = current_time + (warmup ? champsim::chrono::clock::duration{} : EXEC_LATENCY);
+      sq_entry.size = instr.ls_size;
+      sq_entry.wdata = instr.source_reg_val[0];
     }
   }
 
@@ -610,7 +625,13 @@ bool O3_CPU::do_complete_store(const LSQ_ENTRY& sq_entry)
     fmt::print("[SQ] {} instr_id: {} vaddr: {}\n", __func__, data_packet.instr_id, data_packet.v_address);
   }
 
-  return L1D_bus.issue_write<Event::STORE>(data_packet);
+  if (!L1D_bus.issue_write<Event::STORE>(data_packet)) {
+    return false;
+  }
+
+  l1d->impl_prefetcher_write(sq_entry.virtual_address, sq_entry.wdata, sq_entry.size);
+
+  return true;
 }
 
 bool O3_CPU::execute_load(const LSQ_ENTRY& lq_entry, std::any&& token)
@@ -721,6 +742,8 @@ long O3_CPU::retire_rob()
     for (auto dreg : rob_it->destination_registers) {
       reg_allocator.retire_dest_register(dreg);
     }
+
+    l1d->impl_prefetcher_retire(*rob_it);
   }
 
   uint64_t cycles = current_time.time_since_epoch() / clock_period;

@@ -69,6 +69,7 @@ struct core_builder_base {
   unsigned m_execute_latency{};
 
   CACHE* m_l1i{};
+  CACHE* m_l1d{};
   champsim::bandwidth::maximum_type m_l1i_bw{1};
   champsim::bandwidth::maximum_type m_l1d_bw{1};
   champsim::channel* m_fetch_queues{};
@@ -234,6 +235,11 @@ public:
    * Specify a pointer to the L1I cache. This is only used to transmit branch triggers for prefetcher branch hooks.
    */
   self_type& l1i(CACHE* l1i_);
+
+  /**
+   * Specify a pointer to the L1D cache. This is only used to transmit branch triggers for prefetcher branch hooks.
+   */
+  self_type& l1d(CACHE* l1d_);
 
   /**
    * Specify the instruction cache bandwidth.
@@ -469,6 +475,13 @@ template <typename B, typename T>
 auto champsim::core_builder<B, T>::l1i(CACHE* l1i_) -> self_type&
 {
   m_l1i = l1i_;
+  return *this;
+}
+
+template <typename B, typename T>
+auto champsim::core_builder<B, T>::l1d(CACHE* l1d_) -> self_type&
+{
+  m_l1d = l1d_;
   return *this;
 }
 

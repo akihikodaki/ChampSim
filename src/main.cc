@@ -33,9 +33,49 @@
 #include "event_listeners.h"
 #include "ooo_cpu.h" // for O3_CPU
 #include "phase_info.h"
+#include "prefetch.h"
 #include "stats_printer.h"
 #include "tracereader.h"
 #include "vmem.h"
+
+uint64_t total_inst_num = 0;
+uint64_t total_load_num = 0;
+uint64_t decode_inst_num = 0;
+uint64_t decode_load_num = 0;
+uint64_t miss_load_num = 0;
+uint64_t miss_stride_num = 0;
+uint64_t miss_ima_num = 0;
+uint64_t miss_ima_complex_num = 0;
+uint64_t dct_hit_needbyload_num = 0;
+uint64_t dct_hit_same_src_num = 0;
+uint64_t dct_hit_num = 0;
+uint64_t dct_hit_useless_num = 0;
+// uint64_t dct_hit_no_depend_num = 0;
+// uint64_t miss_ima_single_num = 0;
+// uint64_t miss_ima_double_num = 0;
+uint64_t dma_consumer_num = 0;
+uint64_t dma_caught_num = 0;
+uint64_t dma_consumer_inst_num = 0;
+uint64_t dma_caught_inst_num = 0;
+
+uint64_t dct_search_num = 0;
+uint64_t dct_write_num = 0;
+
+uint64_t isq_search_num = 0;
+uint64_t isq_write_num = 0;
+
+std::unordered_map<uint64_t, load_info_t> pc_info;
+std::unordered_map<uint64_t, decode_load_info_t> decode_pc_info;
+std::unordered_map<uint64_t, uint64_t> ic_length_info;
+std::unordered_map<IDM_OP, uint64_t> ict_op_info;
+map<uint64_t, uint64_t> consumer_map;
+uint64_t total_exc_num = 0;
+
+uint64_t ima_pref_num = 0;
+uint64_t ima_pref_miss_num = 0;
+
+uint8_t regfile_load_type[64] = {};
+uint8_t regfile_op[64] = {};
 
 uint8_t trace_type = TRACE_TYPE_INVALID;
 
@@ -131,7 +171,34 @@ int main(int argc, char** argv) // NOLINT(bugprone-exception-escape)
     trace_type = TRACE_TYPE_X86;
   }
 
+  // Regfile & Memory initializaiton
   if (trace_type == TRACE_TYPE_RISCV) {
+    auto cpu_view = gen_environment.cpu_view();
+    uint8_t i = 0;
+    for (auto& trace_name : trace_names) {
+      // Regfile
+      auto pos = trace_name.find(".champsim.xz");
+      if (pos == trace_name.npos) {
+        pos = trace_name.find(".champsim.trace.xz");
+      }
+      if (pos == trace_name.npos) {
+        std::cout << "Trace Name Error!" << std::endl;
+      }
+      string prefix_name = trace_name.substr(0, pos);
+
+      cpu_view[i].get().regfile.set_init_fname(prefix_name + ".regfile.txt");
+      cpu_view[i].get().regfile.init();
+
+      // Memory
+      for (CACHE& cache : gen_environment.cache_view()) {
+        if (cache.cpu == i) {
+          cache.impl_prefetcher_read(prefix_name + ".memory.bin");
+        }
+      }
+
+      i++;
+    }
+
     champsim::arch = {2, UINT8_MAX, UINT8_MAX};
   } else {
     champsim::arch = {champsim::REG_STACK_POINTER, champsim::REG_FLAGS, champsim::REG_INSTRUCTION_POINTER};

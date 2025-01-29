@@ -28,6 +28,7 @@
 
 class CACHE;
 class O3_CPU;
+struct ooo_model_instr;
 namespace champsim::modules
 {
 inline constexpr bool warn_if_any_missing = true;
@@ -135,6 +136,26 @@ struct prefetcher : public bound_to<CACHE> {
   static auto branch_operate_member_impl(long) -> std::false_type;
 
   template <typename T, typename... Args>
+  static auto decode_impl(int) -> decltype(std::declval<T>().prefetcher_decode(std::declval<Args>()...), std::true_type{});
+  template <typename, typename...>
+  static auto decode_impl(long) -> std::false_type;
+
+  template <typename T, typename... Args>
+  static auto retire_impl(int) -> decltype(std::declval<T>().prefetcher_retire(std::declval<Args>()...), std::true_type{});
+  template <typename, typename...>
+  static auto retire_impl(long) -> std::false_type;
+
+  template <typename T, typename... Args>
+  static auto read_impl(int) -> decltype(std::declval<T>().prefetcher_read(std::declval<Args>()...), std::true_type{});
+  template <typename, typename...>
+  static auto read_impl(long) -> std::false_type;
+
+  template <typename T, typename... Args>
+  static auto write_impl(int) -> decltype(std::declval<T>().prefetcher_write(std::declval<Args>()...), std::true_type{});
+  template <typename, typename...>
+  static auto write_impl(long) -> std::false_type;
+
+  template <typename T, typename... Args>
   constexpr static bool has_initialize = decltype(initiailize_memory_impl<T, Args...>(0))::value;
 
   template <typename T, typename... Args>
@@ -151,6 +172,18 @@ struct prefetcher : public bound_to<CACHE> {
 
   template <typename T, typename... Args>
   constexpr static bool has_branch_operate = decltype(branch_operate_member_impl<T, Args...>(0))::value;
+
+  template <typename T, typename... Args>
+  constexpr static bool has_decode = decltype(decode_impl<T, Args...>(0))::value;
+
+  template <typename T, typename... Args>
+  constexpr static bool has_retire = decltype(retire_impl<T, Args...>(0))::value;
+
+  template <typename T, typename... Args>
+  constexpr static bool has_read = decltype(read_impl<T, Args...>(0))::value;
+
+  template <typename T, typename... Args>
+  constexpr static bool has_write = decltype(write_impl<T, Args...>(0))::value;
 };
 
 struct replacement : public bound_to<CACHE> {

@@ -1,5 +1,6 @@
 #include <catch.hpp>
 
+#include "defaults.hpp"
 #include "instr.h"
 #include "mocks.hpp"
 #include "ooo_cpu.h"
@@ -10,9 +11,11 @@ SCENARIO("An empty ROB does not retire any instructions")
   {
     do_nothing_MRC mock_L1I, mock_L1D;
     constexpr long retire_bandwidth = 1;
+    CACHE l1d{champsim::cache_builder{champsim::defaults::default_l1d}};
     O3_CPU uut{champsim::core_builder{}
                    .retire_width(champsim::bandwidth::maximum_type{retire_bandwidth})
                    .fetch_queues(&mock_L1I.queues)
+                   .l1d(&l1d)
                    .data_queues(&mock_L1D.queues)};
 
     auto old_rob_occupancy = std::size(uut.ROB);
@@ -38,9 +41,11 @@ SCENARIO("A completed instruction can be retired")
   {
     do_nothing_MRC mock_L1I, mock_L1D;
     constexpr long retire_bandwidth = 1;
+    CACHE l1d{champsim::cache_builder{champsim::defaults::default_l1d}};
     O3_CPU uut{champsim::core_builder{}
                    .retire_width(champsim::bandwidth::maximum_type{retire_bandwidth})
                    .fetch_queues(&mock_L1I.queues)
+                   .l1d(&l1d)
                    .data_queues(&mock_L1D.queues)};
 
     uut.ROB.push_back(champsim::test::instruction_with_ip(1));
@@ -82,9 +87,11 @@ SCENARIO("Completed instructions are retired in order")
   {
     do_nothing_MRC mock_L1I, mock_L1D;
     constexpr long retire_bandwidth = 2;
+    CACHE l1d{champsim::cache_builder{champsim::defaults::default_l1d}};
     O3_CPU uut{champsim::core_builder{}
                    .retire_width(champsim::bandwidth::maximum_type{retire_bandwidth})
                    .fetch_queues(&mock_L1I.queues)
+                   .l1d(&l1d)
                    .data_queues(&mock_L1D.queues)};
 
     std::vector test_instructions(retire_bandwidth, champsim::test::instruction_with_ip(1));
@@ -133,9 +140,11 @@ SCENARIO("The retire bandwidth limits the number of retirements per cycle")
     do_nothing_MRC mock_L1I, mock_L1D;
     constexpr long retire_bandwidth = 1;
     constexpr long num_instrs = 2 * retire_bandwidth;
+    CACHE l1d{champsim::cache_builder{champsim::defaults::default_l1d}};
     O3_CPU uut{champsim::core_builder{}
                    .retire_width(champsim::bandwidth::maximum_type{retire_bandwidth})
                    .fetch_queues(&mock_L1I.queues)
+                   .l1d(&l1d)
                    .data_queues(&mock_L1D.queues)};
 
     std::vector test_instructions(num_instrs, champsim::test::instruction_with_ip(1));

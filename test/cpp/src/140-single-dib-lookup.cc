@@ -1,5 +1,6 @@
 #include <catch.hpp>
 
+#include "defaults.hpp"
 #include "instr.h"
 #include "mocks.hpp"
 #include "ooo_cpu.h"
@@ -10,12 +11,14 @@ SCENARIO("A late-added instruction does not miss the IFB")
   {
     release_MRC mock_L1I;
     do_nothing_MRC mock_L1D;
+    CACHE l1d{champsim::cache_builder{champsim::defaults::default_l1d}};
     O3_CPU uut{champsim::core_builder{}
                    .dib_window(4)
                    .ifetch_buffer_size(2)
                    .l1i_bandwidth(champsim::bandwidth::maximum_type{10})
                    .l1d_bandwidth(champsim::bandwidth::maximum_type{10})
                    .fetch_queues(&mock_L1I.queues)
+                   .l1d(&l1d)
                    .data_queues(&mock_L1D.queues)};
 
     std::array<champsim::operable*, 3> elements{{&uut, &mock_L1I, &mock_L1D}};

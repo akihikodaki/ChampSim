@@ -20,8 +20,10 @@ SCENARIO("The same instruction hits the DIB on the second time")
     const unsigned int execute_latency = 2;
     do_nothing_MRC mock_L1I{fetch_latency}, mock_L1D;
 
+    CACHE l1d{champsim::cache_builder{champsim::defaults::default_l1d}};
     O3_CPU uut{champsim::core_builder{champsim::defaults::default_core}
                    .fetch_queues(&mock_L1I.queues)
+                   .l1d(&l1d)
                    .data_queues(&mock_L1D.queues)
                    .decode_latency(decode_latency)
                    .dispatch_latency(dispatch_latency)

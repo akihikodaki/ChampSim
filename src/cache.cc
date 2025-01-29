@@ -825,6 +825,17 @@ void CACHE::impl_prefetcher_branch_operate(champsim::address ip, uint8_t branch_
   pref_module_pimpl->impl_prefetcher_branch_operate(ip, branch_type, branch_target);
 }
 
+void CACHE::impl_prefetcher_decode(const ooo_model_instr& instr) const { return pref_module_pimpl->impl_prefetcher_decode(instr); }
+
+void CACHE::impl_prefetcher_retire(const ooo_model_instr& instr) const { return pref_module_pimpl->impl_prefetcher_retire(instr); }
+
+void CACHE::impl_prefetcher_read(std::string fname) const { return pref_module_pimpl->impl_prefetcher_read(fname); }
+
+void CACHE::impl_prefetcher_write(champsim::address addr, uint64_t wdata, uint8_t size) const
+{
+  return pref_module_pimpl->impl_prefetcher_write(addr, wdata, size);
+}
+
 void CACHE::impl_initialize_replacement() const { repl_module_pimpl->impl_initialize_replacement(); }
 
 long CACHE::impl_find_victim(uint32_t triggering_cpu, uint64_t instr_id, long set, const BLOCK* current_set, champsim::address ip, champsim::address full_addr,

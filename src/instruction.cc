@@ -16,8 +16,6 @@
 
 #include "instruction.h"
 
-#include <capstone/capstone.h>
-
 std::ostream& operator<<(std::ostream& os, const ooo_model_instr& instr)
 {
   fmt::print(os, "{}: ", instr.ip);

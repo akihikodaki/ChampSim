@@ -63,7 +63,9 @@ SCENARIO("Instructions that hit the DIB do not reorder ahead of instructions tha
   {
     do_nothing_MRC mock_L1I, mock_L1D;
 
-    O3_CPU uut{champsim::core_builder{champsim::defaults::default_core}.fetch_queues(&mock_L1I.queues).data_queues(&mock_L1D.queues).decode_latency(10)
+    CACHE l1d{champsim::cache_builder{champsim::defaults::default_l1d}};
+    O3_CPU uut{
+        champsim::core_builder{champsim::defaults::default_core}.fetch_queues(&mock_L1I.queues).l1d(&l1d).data_queues(&mock_L1D.queues).decode_latency(10)
 
     };
     uut.warmup = false;

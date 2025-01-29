@@ -42,6 +42,7 @@
 #include "instruction.h"
 #include "modules.h"
 #include "operable.h"
+#include "regfile.h"
 #include "register_allocator.h"
 #include "util/lru_table.h"
 #include "util/to_underlying.h"
@@ -70,6 +71,10 @@ struct LSQ_ENTRY : champsim::program_ordered<LSQ_ENTRY> {
   champsim::address virtual_address{};
   champsim::address ip{};
   champsim::chrono::clock::time_point ready_time{champsim::chrono::clock::time_point::max()};
+
+  // IDM
+  uint64_t wdata = 0;
+  uint8_t size = 0;
 
   std::array<uint8_t, 2> asid = {std::numeric_limits<uint8_t>::max(), std::numeric_limits<uint8_t>::max()};
   bool fetch_issued = false;
@@ -142,11 +147,14 @@ public:
   // branch
   champsim::chrono::clock::time_point fetch_resume_time{};
 
+  REGFILE regfile;
+
   const long IN_QUEUE_SIZE;
   std::deque<ooo_model_instr> input_queue;
 
   CacheBus L1I_bus, L1D_bus;
   CACHE* l1i;
+  CACHE* l1d;
 
   void initialize() final;
   long operate() final;
@@ -251,7 +259,7 @@ public:
         DECODE_LATENCY(b.m_decode_latency * b.m_clock_period), SCHEDULING_LATENCY(b.m_schedule_latency * b.m_clock_period),
         EXEC_LATENCY(b.m_execute_latency * b.m_clock_period), DIB_HIT_LATENCY(b.m_dib_hit_latency * b.m_clock_period), L1I_BANDWIDTH(b.m_l1i_bw),
         L1D_BANDWIDTH(b.m_l1d_bw), IN_QUEUE_SIZE(2 * champsim::to_underlying(b.m_fetch_width)), L1I_bus(b.m_cpu, b.m_fetch_queues),
-        L1D_bus(b.m_cpu, b.m_data_queues), l1i(b.m_l1i), branch_module_pimpl(std::make_unique<branch_module_model<Bs...>>(this)),
+        L1D_bus(b.m_cpu, b.m_data_queues), l1i(b.m_l1i), l1d(b.m_l1d), branch_module_pimpl(std::make_unique<branch_module_model<Bs...>>(this)),
         btb_module_pimpl(std::make_unique<btb_module_model<Ts...>>(this))
   {
   }

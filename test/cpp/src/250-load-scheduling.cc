@@ -1,5 +1,6 @@
 #include <catch.hpp>
 
+#include "defaults.hpp"
 #include "instr.h"
 #include "mocks.hpp"
 #include "ooo_cpu.h"
@@ -9,8 +10,10 @@ SCENARIO("The core issues loads only after its registers are finished")
   GIVEN("A DISPATCH_BUFFER with a register RAW and memory source")
   {
     do_nothing_MRC mock_L1I, mock_L1D;
+    CACHE l1d{champsim::cache_builder{champsim::defaults::default_l1d}};
     O3_CPU uut{champsim::core_builder{}
                    .fetch_queues(&mock_L1I.queues)
+                   .l1d(&l1d)
                    .data_queues(&mock_L1D.queues)
                    .dispatch_width(champsim::bandwidth::maximum_type{2})
                    .rob_size(2)
