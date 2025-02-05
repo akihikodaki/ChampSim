@@ -427,10 +427,6 @@ long CACHE::operate()
     return entry.is_translated;
   };
 
-  for (auto* ul : upper_levels) {
-    ul->check_collision();
-  }
-
   // Finish returns
   std::for_each(std::cbegin(lower_level->returned), std::cend(lower_level->returned), [this](const auto& pkt) { this->finish_packet(pkt); });
   progress += std::distance(std::cbegin(lower_level->returned), std::cend(lower_level->returned));
@@ -884,20 +880,16 @@ void CACHE::end_phase(unsigned finished_cpu)
 
   for (auto* ul : upper_levels) {
     ul->roi_stats.RQ_ACCESS = ul->sim_stats.RQ_ACCESS;
-    ul->roi_stats.RQ_MERGED = ul->sim_stats.RQ_MERGED;
     ul->roi_stats.RQ_FULL = ul->sim_stats.RQ_FULL;
     ul->roi_stats.RQ_TO_CACHE = ul->sim_stats.RQ_TO_CACHE;
 
     ul->roi_stats.PQ_ACCESS = ul->sim_stats.PQ_ACCESS;
-    ul->roi_stats.PQ_MERGED = ul->sim_stats.PQ_MERGED;
     ul->roi_stats.PQ_FULL = ul->sim_stats.PQ_FULL;
     ul->roi_stats.PQ_TO_CACHE = ul->sim_stats.PQ_TO_CACHE;
 
     ul->roi_stats.WQ_ACCESS = ul->sim_stats.WQ_ACCESS;
-    ul->roi_stats.WQ_MERGED = ul->sim_stats.WQ_MERGED;
     ul->roi_stats.WQ_FULL = ul->sim_stats.WQ_FULL;
     ul->roi_stats.WQ_TO_CACHE = ul->sim_stats.WQ_TO_CACHE;
-    ul->roi_stats.WQ_FORWARD = ul->sim_stats.WQ_FORWARD;
   }
 }
 
