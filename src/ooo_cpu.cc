@@ -256,12 +256,15 @@ bool O3_CPU::do_fetch_instruction(std::deque<ooo_model_instr>::iterator begin, s
   fetch_packet.instr_id = begin->instr_id;
   fetch_packet.ip = begin->ip;
 
-  std::transform(begin, end, std::back_inserter(fetch_packet.instr_depend_on_me), [](const auto& instr) { return instr.instr_id; });
+  std::vector<uint64_t> instr_depend_on_me;
+  std::transform(begin, end, std::back_inserter(instr_depend_on_me), [](const auto& instr) { return instr.instr_id; });
 
   if constexpr (champsim::debug_print) {
-    fmt::print("[IFETCH] {} instr_id: {} ip: {} dependents: {} event_cycle: {}\n", __func__, begin->instr_id, begin->ip,
-               std::size(fetch_packet.instr_depend_on_me), begin->ready_time.time_since_epoch() / clock_period);
+    fmt::print("[IFETCH] {} instr_id: {} ip: {} dependents: {} event_cycle: {}\n", __func__, begin->instr_id, begin->ip, std::size(instr_depend_on_me),
+               begin->ready_time.time_since_epoch() / clock_period);
   }
+
+  fetch_packet.token = std::move(instr_depend_on_me);
 
   return L1I_bus.issue_read(fetch_packet);
 }
@@ -659,9 +662,10 @@ long O3_CPU::handle_memory_return()
   for (champsim::bandwidth fetch_bw{FETCH_WIDTH}, l1i_bw{L1I_BANDWIDTH};
        fetch_bw.has_remaining() && l1i_bw.has_remaining() && !L1I_bus.lower_level->returned.empty(); l1i_bw.consume()) {
     auto& l1i_entry = L1I_bus.lower_level->returned.front();
+    auto& instr_depend_on_me = *std::any_cast<std::vector<uint64_t>>(&l1i_entry.token);
 
-    while (fetch_bw.has_remaining() && !l1i_entry.instr_depend_on_me.empty()) {
-      auto fetched = std::find_if(std::begin(IFETCH_BUFFER), std::end(IFETCH_BUFFER), ooo_model_instr::matches_id(l1i_entry.instr_depend_on_me.front()));
+    while (fetch_bw.has_remaining() && !instr_depend_on_me.empty()) {
+      auto fetched = std::find_if(std::begin(IFETCH_BUFFER), std::end(IFETCH_BUFFER), ooo_model_instr::matches_id(instr_depend_on_me.front()));
       if (fetched != std::end(IFETCH_BUFFER) && champsim::block_number{fetched->ip} == champsim::block_number{l1i_entry.v_address} && fetched->fetch_issued) {
         fetched->fetch_completed = true;
         fetch_bw.consume();
@@ -672,11 +676,11 @@ long O3_CPU::handle_memory_return()
         }
       }
 
-      l1i_entry.instr_depend_on_me.erase(std::begin(l1i_entry.instr_depend_on_me));
+      instr_depend_on_me.erase(std::begin(instr_depend_on_me));
     }
 
     // remove this entry if we have serviced all of its instructions
-    if (l1i_entry.instr_depend_on_me.empty()) {
+    if (instr_depend_on_me.empty()) {
       L1I_bus.lower_level->returned.pop_front();
       ++progress;
     }

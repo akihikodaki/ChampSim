@@ -115,7 +115,7 @@ SCENARIO("A prefetch MSHR that gets hit is promoted")
       AND_WHEN("The MSHR is closed")
       {
         champsim::channel::response_type response{testbed.uut.MSHR.front().address, testbed.uut.MSHR.front().v_address,
-                                                  testbed.uut.MSHR.front().data_promise->data, 0, testbed.uut.MSHR.front().reqs.front().instr_depend_on_me};
+                                                  testbed.uut.MSHR.front().data_promise->data, 0, testbed.uut.MSHR.front().reqs.front().token};
 
         testbed.uut.lower_level->returned.push_back(response);
         for (uint64_t i = 0; i < 8 * (testbed.hit_latency); ++i)

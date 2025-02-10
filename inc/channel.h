@@ -17,6 +17,7 @@
 #ifndef CHANNEL_H
 #define CHANNEL_H
 
+#include <any>
 #include <array>
 #include <cstdint>
 #include <deque>
@@ -61,7 +62,7 @@ class channel
     uint64_t instr_id = 0;
     champsim::address ip{};
 
-    std::vector<uint64_t> instr_depend_on_me{};
+    std::any token{};
   };
 
   struct response {
@@ -69,13 +70,13 @@ class channel
     champsim::address v_address{};
     champsim::address data{};
     uint32_t pf_metadata = 0;
-    std::vector<uint64_t> instr_depend_on_me{};
+    std::any token{};
 
-    response(champsim::address addr, champsim::address v_addr, champsim::address data_, uint32_t pf_meta, std::vector<uint64_t> deps)
-        : address(addr), v_address(v_addr), data(data_), pf_metadata(pf_meta), instr_depend_on_me(deps)
+    response(champsim::address addr, champsim::address v_addr, champsim::address data_, uint32_t pf_meta, std::any _token)
+        : address(addr), v_address(v_addr), data(data_), pf_metadata(pf_meta), token(_token)
     {
     }
-    explicit response(request req) : response(req.address, req.v_address, req.data, req.pf_metadata, req.instr_depend_on_me) {}
+    explicit response(request req) : response(req.address, req.v_address, req.data, req.pf_metadata, req.token) {}
   };
 
   template <typename R>

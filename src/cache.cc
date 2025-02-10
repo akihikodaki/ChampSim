@@ -94,7 +94,7 @@ auto CACHE::operator=(CACHE&& other) -> CACHE&
 
 CACHE::tag_lookup_type::tag_lookup_type(const request_type& req, bool local_pref, bool skip)
     : address(req.address), v_address(req.v_address), data(req.data), ip(req.ip), instr_id(req.instr_id), pf_metadata(req.pf_metadata), cpu(req.cpu),
-      type(req.type), prefetch_from_this(local_pref), skip_fill(skip), is_translated(req.is_translated), instr_depend_on_me(req.instr_depend_on_me)
+      type(req.type), prefetch_from_this(local_pref), skip_fill(skip), is_translated(req.is_translated), token(req.token)
 {
 }
 
@@ -234,7 +234,7 @@ bool CACHE::handle_fill(const fill_type& fill)
   sim_stats.fill.increment(std::pair{fill.type, fill.cpu});
 
   for (auto req : fill.reqs)
-    req.to_return->emplace_back(req.address, req.v_address, fill.data_promise->data, metadata_thru, req.instr_depend_on_me);
+    req.to_return->emplace_back(req.address, req.v_address, fill.data_promise->data, metadata_thru, req.token);
 
   return true;
 }
@@ -269,7 +269,7 @@ bool CACHE::try_hit(const tag_lookup_type& handle_pkt)
     sim_stats.hits.increment(std::pair{handle_pkt.type, handle_pkt.cpu});
 
     if (handle_pkt.to_return)
-      handle_pkt.to_return->emplace_back(handle_pkt.address, handle_pkt.v_address, way->data, metadata_thru, handle_pkt.instr_depend_on_me);
+      handle_pkt.to_return->emplace_back(handle_pkt.address, handle_pkt.v_address, way->data, metadata_thru, handle_pkt.token);
 
     way->dirty |= (handle_pkt.type == access_type::WRITE);
 
@@ -301,7 +301,6 @@ auto CACHE::mshr_and_forward_packet(const tag_lookup_type& handle_pkt) -> std::p
   fwd_pkt.instr_id = handle_pkt.instr_id;
   fwd_pkt.ip = handle_pkt.ip;
 
-  fwd_pkt.instr_depend_on_me = handle_pkt.instr_depend_on_me;
   fwd_pkt.response_requested = (!handle_pkt.prefetch_from_this || !handle_pkt.skip_fill);
 
   return std::pair{std::move(to_allocate), std::move(fwd_pkt)};
@@ -669,7 +668,6 @@ void CACHE::issue_translation(tag_lookup_type& q_entry) const
     fwd_pkt.instr_id = q_entry.instr_id;
     fwd_pkt.ip = q_entry.ip;
 
-    fwd_pkt.instr_depend_on_me = q_entry.instr_depend_on_me;
     fwd_pkt.is_translated = true;
 
     q_entry.translate_issued = lower_translate->add_rq(fwd_pkt);

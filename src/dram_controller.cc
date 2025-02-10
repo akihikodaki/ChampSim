@@ -112,7 +112,7 @@ long DRAM_CHANNEL::operate()
     for (auto& entry : RQ) {
       if (entry.has_value()) {
         for (auto& req : entry.value().reqs) {
-          req.to_return->emplace_back(req.address, req.v_address, req.data, req.pf_metadata, req.instr_depend_on_me);
+          req.to_return->emplace_back(req.address, req.v_address, req.data, req.pf_metadata, req.token);
         }
 
         ++progress;
@@ -145,7 +145,7 @@ long DRAM_CHANNEL::finish_dbus_request()
 
   if (active_request != std::end(bank_request) && active_request->ready_time <= current_time) {
     for (auto& req : active_request->pkt->value().reqs) {
-      req.to_return->emplace_back(req.address, req.v_address, req.data, req.pf_metadata, req.instr_depend_on_me);
+      req.to_return->emplace_back(req.address, req.v_address, req.data, req.pf_metadata, req.token);
     }
 
     active_request->valid = false;
@@ -450,7 +450,7 @@ void DRAM_CHANNEL::check_read_collision()
       // write forward
       if (auto wq_it = std::find_if(std::begin(WQ), std::end(WQ), checker); wq_it != std::end(WQ)) {
         for (auto& req : rq_it->value().reqs) {
-          req.to_return->emplace_back(req.address, req.v_address, wq_it->value().data, req.pf_metadata, req.instr_depend_on_me);
+          req.to_return->emplace_back(req.address, req.v_address, wq_it->value().data, req.pf_metadata, req.token);
         }
 
         rq_it->reset();
@@ -507,7 +507,7 @@ bool MEMORY_CONTROLLER::add_rq(const request_type& packet, champsim::channel* ul
     rq_it->value().scheduled = false;
     rq_it->value().ready_time = current_time;
     if (packet.response_requested)
-      rq_it->value().reqs.push_back({packet.pf_metadata, packet.address, packet.v_address, packet.data, packet.instr_depend_on_me, &ul->returned});
+      rq_it->value().reqs.push_back({packet.pf_metadata, packet.address, packet.v_address, packet.data, packet.token, &ul->returned});
 
     return true;
   }

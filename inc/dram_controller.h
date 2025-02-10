@@ -102,7 +102,7 @@ struct DRAM_CHANNEL final : public champsim::operable {
     champsim::address v_address{};
     champsim::address data{};
 
-    std::vector<uint64_t> instr_depend_on_me{};
+    std::any token{};
     std::deque<response_type>* to_return{};
   };
 
