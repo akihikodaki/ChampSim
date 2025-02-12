@@ -176,7 +176,7 @@ public:
 
   void do_finish_store(const LSQ_ENTRY& sq_entry);
   bool do_complete_store(const LSQ_ENTRY& sq_entry);
-  bool execute_load(const LSQ_ENTRY& lq_entry);
+  bool execute_load(const LSQ_ENTRY& lq_entry, std::any&& token);
 
   [[nodiscard]] auto roi_instr() const { return roi_stats.instrs(); }
   [[nodiscard]] auto roi_cycle() const { return roi_stats.cycles(); }

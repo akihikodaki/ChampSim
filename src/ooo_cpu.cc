@@ -568,7 +568,7 @@ long O3_CPU::operate_lsq()
   for (auto& lq_entry : LQ) {
     if (load_bw.has_remaining() && lq_entry.has_value() && lq_entry->producer_id == std::numeric_limits<uint64_t>::max() && !lq_entry->fetch_issued
         && lq_entry->ready_time < current_time) {
-      auto success = execute_load(*lq_entry);
+      auto success = execute_load(*lq_entry, std::ref(lq_entry));
       if (success) {
         load_bw.consume();
         lq_entry->fetch_issued = true;
@@ -611,12 +611,13 @@ bool O3_CPU::do_complete_store(const LSQ_ENTRY& sq_entry)
   return L1D_bus.issue_write(data_packet);
 }
 
-bool O3_CPU::execute_load(const LSQ_ENTRY& lq_entry)
+bool O3_CPU::execute_load(const LSQ_ENTRY& lq_entry, std::any&& token)
 {
   CacheBus::request_type data_packet;
   data_packet.v_address = lq_entry.virtual_address;
   data_packet.instr_id = lq_entry.instr_id;
   data_packet.ip = lq_entry.ip;
+  data_packet.token = std::move(token);
 
   if constexpr (champsim::debug_print) {
     fmt::print("[LQ] {} instr_id: {} vaddr: {}\n", __func__, data_packet.instr_id, data_packet.v_address);
@@ -688,14 +689,9 @@ long O3_CPU::handle_memory_return()
 
   auto l1d_it = std::begin(L1D_bus.lower_level->returned);
   for (champsim::bandwidth l1d_bw{L1D_BANDWIDTH}; l1d_bw.has_remaining() && l1d_it != std::end(L1D_bus.lower_level->returned); l1d_bw.consume(), ++l1d_it) {
-    for (auto& lq_entry : LQ) {
-      if (lq_entry.has_value() && lq_entry->fetch_issued && champsim::block_number{lq_entry->virtual_address} == champsim::block_number{l1d_it->v_address}) {
-        lq_entry->finish(std::begin(ROB), std::end(ROB));
-        lq_entry.reset();
-        ++progress;
-        break;
-      }
-    }
+    auto& lq_entry = std::any_cast<std::reference_wrapper<std::optional<LSQ_ENTRY>>>(l1d_it->token).get();
+    lq_entry->finish(std::begin(ROB), std::end(ROB));
+    lq_entry.reset();
     ++progress;
   }
   L1D_bus.lower_level->returned.erase(std::begin(L1D_bus.lower_level->returned), l1d_it);
