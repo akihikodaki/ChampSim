@@ -348,7 +348,7 @@ class NormalizedConfiguration:
         path_root_names = tuple(tuple(cpu[name] for cpu in cores) for name in ('L1I', 'L1D', 'ITLB', 'DTLB'))
 
         # Instantiate any missing default caches
-        caches = util.combine_named(self.caches.values(), ({ 'name': 'LLC' },), *map(defaults.cache_core_defaults, cores))
+        caches = util.combine_named(self.caches.values(), ({ 'name': 'LLC', 'local_name': 'LLC' },), *map(defaults.cache_core_defaults, cores))
         ptws = util.combine_named(self.ptws.values(), *map(defaults.ptw_core_defaults, cores))
 
         # Remove caches that are inaccessible

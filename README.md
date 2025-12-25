@@ -92,7 +92,7 @@ There are some other useful metrics printed out at the end of simulation. <br>
 
 There are three options that can control Kanata log generation:
 
-- `--kanata` tells the path to write Kanata logs. If no name is specified, stdout will be used.
+- `--kanata` tells the path to write Kanata logs.
 - `--kanata-max` tells the maximum number of instructions to log.
 - `--kanata-skip` tells the number of instructions to skip before starting Kanata log generation.
 

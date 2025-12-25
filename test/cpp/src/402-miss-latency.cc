@@ -257,7 +257,8 @@ SCENARIO("A lower-level queue refusal limits the number of outstanding misses")
 {
   GIVEN("An empty cache")
   {
-    champsim::channel refusal_channel{0, 0, 0, champsim::data::bits{}, 0}; // Refuses all packets
+    uint64_t num_reqs;
+    champsim::channel refusal_channel{num_reqs, {}, 0, 0, 0, champsim::data::bits{}, 0}; // Refuses all packets
     to_rq_MRP mock_ul;
     CACHE uut{champsim::cache_builder{champsim::defaults::default_l1d}.name("402c-uut").upper_levels({&mock_ul.queues}).lower_level(&refusal_channel)};
 

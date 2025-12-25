@@ -23,6 +23,7 @@
 
 #include "champsim.h"
 #include "deadlock.h"
+#include "event_listeners.h"
 #include "instruction.h"
 #include "ptw_builder.h" // for ptw_builder
 #include "util/bits.h"   // for bitmask, lg2, splice_bits
@@ -30,7 +31,7 @@
 #include "vmem.h"
 
 PageTableWalker::PageTableWalker(champsim::ptw_builder b)
-    : champsim::operable(b.m_clock_period), upper_levels(b.m_uls), lower_level(b.m_ll), NAME(b.m_name),
+    : champsim::operable(b.m_clock_period), upper_levels(b.m_uls), lower_level_(b.m_ll), NAME(b.m_name),
       MSHR_SIZE(b.m_mshr_size.value_or(std::lround(b.m_mshr_factor * std::floor(std::size(upper_levels))))),
       MAX_READ(b.m_max_tag_check.value_or(champsim::bandwidth::maximum_type{b.scaled_by_ul_size(b.m_bandwidth_factor)})),
       MAX_FILL(b.m_max_fill.value_or(champsim::bandwidth::maximum_type{b.scaled_by_ul_size(b.m_bandwidth_factor)})),
@@ -46,7 +47,7 @@ PageTableWalker::PageTableWalker(champsim::ptw_builder b)
 }
 
 PageTableWalker::mshr_type::mshr_type(const request_type& req, std::size_t level)
-    : address(req.address), v_address(req.v_address), token(req.token), pf_metadata(req.pf_metadata), cpu(req.cpu), translation_level(level)
+    : id(req.id), address(req.address), v_address(req.v_address), token(req.token), pf_metadata(req.pf_metadata), cpu(req.cpu), translation_level(level)
 {
   asid[0] = req.asid[0];
   asid[1] = req.asid[1];
@@ -110,12 +111,14 @@ auto PageTableWalker::step_translation(const mshr_type& source) -> std::optional
   packet.is_translated = true;
   packet.type = access_type::TRANSLATION;
 
-  bool success = lower_level->add_rq(packet);
-  if (success) {
-    return source;
+  bool success = lower_level_->add_rq(packet);
+  if (!success) {
+    return std::nullopt;
   }
 
-  return std::nullopt;
+  handle_event<Event::PTW_STEP>(*this, source, packet);
+
+  return source;
 }
 
 long PageTableWalker::operate()
@@ -125,17 +128,18 @@ long PageTableWalker::operate()
   auto is_ready = [time = current_time](const auto& pkt) {
     return pkt.data.is_ready_at(time);
   };
-  std::for_each(std::cbegin(lower_level->returned), std::cend(lower_level->returned), [this](const auto& pkt) { this->finish_packet(pkt); });
-  progress += std::distance(std::cbegin(lower_level->returned), std::cend(lower_level->returned));
-  lower_level->returned.clear();
+  std::for_each(std::cbegin(lower_level_->returned), std::cend(lower_level_->returned), [this](const auto& pkt) { this->finish_packet(pkt); });
+  progress += std::distance(std::cbegin(lower_level_->returned), std::cend(lower_level_->returned));
+  lower_level_->returned.clear();
 
   std::vector<mshr_type> next_steps{};
 
   champsim::bandwidth fill_bw{MAX_FILL};
   auto [complete_begin, complete_end] = champsim::get_span_p(std::cbegin(completed), std::cend(completed), fill_bw, is_ready);
   std::for_each(complete_begin, complete_end, [](auto& mshr_entry) {
+    handle_event<Event::PTW_COMPLETE>(mshr_entry);
     if (mshr_entry.to_return) {
-      mshr_entry.to_return->emplace_back(mshr_entry.v_address, mshr_entry.v_address, *mshr_entry.data, mshr_entry.pf_metadata, mshr_entry.token);
+      mshr_entry.to_return->emplace_back(mshr_entry.id, mshr_entry.v_address, mshr_entry.v_address, *mshr_entry.data, mshr_entry.pf_metadata, mshr_entry.token);
     }
   });
   fill_bw.consume(std::distance(complete_begin, complete_end));
@@ -181,6 +185,8 @@ long PageTableWalker::operate()
 
 void PageTableWalker::finish_packet(const response_type& packet)
 {
+  handle_event<Event::CHANNEL_RESPONSE>(packet);
+
   auto finish_step = [this](auto mshr_entry) {
     auto [ppage, penalty] = this->vmem->get_pte_pa(mshr_entry.cpu, champsim::page_number{mshr_entry.v_address}, mshr_entry.translation_level);
 

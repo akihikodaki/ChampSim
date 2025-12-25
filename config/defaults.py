@@ -18,16 +18,16 @@ from . import util
 
 def cache_core_defaults(cpu):
     ''' Generate the lower levels that a default core would expect for each of its caches '''
-    yield { 'name': cpu.get('L1I'), 'lower_level': cpu.get('L2C') }
-    yield { 'name': cpu.get('L1D'), 'lower_level': cpu.get('L2C') }
-    yield { 'name': cpu.get('ITLB'), 'lower_level': cpu.get('STLB') }
-    yield { 'name': cpu.get('DTLB'), 'lower_level': cpu.get('STLB') }
-    yield { 'name': cpu.get('L2C'), 'lower_level': 'LLC' }
-    yield { 'name': cpu.get('STLB'), 'lower_level': cpu.get('PTW') }
+    yield { 'name': cpu.get('L1I'), 'local_name': 'L1I', 'lower_level': cpu.get('L2C') }
+    yield { 'name': cpu.get('L1D'), 'local_name': 'L1D', 'lower_level': cpu.get('L2C') }
+    yield { 'name': cpu.get('ITLB'), 'local_name': 'ITLB', 'lower_level': cpu.get('STLB') }
+    yield { 'name': cpu.get('DTLB'), 'local_name': 'DTLB', 'lower_level': cpu.get('STLB') }
+    yield { 'name': cpu.get('L2C'), 'local_name': 'L2C', 'lower_level': 'LLC' }
+    yield { 'name': cpu.get('STLB'), 'local_name': 'STLB', 'lower_level': cpu.get('PTW') }
 
 def ptw_core_defaults(cpu):
     ''' Generate the lower levels that a default core would expect for each of its PTWs '''
-    yield { 'name': cpu.get('PTW'), 'lower_level': cpu.get('L1D') }
+    yield { 'name': cpu.get('PTW'), 'local_name': 'PTW', 'lower_level': cpu.get('L1D') }
 
 def list_defaults_for_core(cpu, caches):
     ''' Generate the down-path defaults that a default core would expect '''

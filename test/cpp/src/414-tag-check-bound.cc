@@ -42,7 +42,7 @@ TEST_CASE("Tag checks do not break when translation misses back up")
     return test;
   });
 
-  for (const auto& pkt : packets)
+  for (auto& pkt : packets)
     mock_ul.issue(pkt);
 
   for (int i = 0; i < 100; ++i) {
@@ -64,7 +64,8 @@ TEST_CASE("Backed up translation misses do not prevent translated packets from a
 {
   constexpr uint64_t hit_latency = 1;
   constexpr uint64_t fill_latency = 3;
-  champsim::channel refusal_channel{0, 0, 0, champsim::data::bits{}, false};
+  uint64_t num_reqs;
+  champsim::channel refusal_channel{num_reqs, {}, 0, 0, 0, champsim::data::bits{}, false};
   do_nothing_MRC mock_ll;
   to_rq_MRP seed_ul{[](auto x, auto y) {
     return x.v_address == y.v_address;
@@ -104,7 +105,7 @@ TEST_CASE("Backed up translation misses do not prevent translated packets from a
     return test;
   });
 
-  for (const auto& pkt : packets)
+  for (auto& pkt : packets)
     seed_ul.issue(pkt);
 
   for (int i = 0; i < 100; ++i) {

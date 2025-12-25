@@ -31,10 +31,11 @@ TEST_CASE("The MSHR factor uses the number of upper levels to determine the PTW'
   auto num_uls = GENERATE(1u, 2u, 4u, 6u);
   auto mshr_factor = 2u;
   champsim::ptw_builder buildA{};
-  std::vector<champsim::channel> channels{num_uls};
+  std::vector<champsim::channel> channels;
   std::vector<champsim::channel*> channel_pointers{};
-  for (auto& elem : channels)
-    channel_pointers.push_back(&elem);
+  uint64_t num_reqs;
+  for (unsigned i = 0; i < num_uls; i++)
+    channel_pointers.push_back(&channels.emplace_back(num_reqs, "", 8, 8, 8, champsim::data::bits{}, false));
   buildA.upper_levels(std::move(channel_pointers));
   buildA.mshr_factor((double)mshr_factor);
 
@@ -68,10 +69,11 @@ TEST_CASE("The MSHR factor can control the PTW's default number of MSHRs")
   auto num_uls = 2u;
   auto mshr_factor = GENERATE(1u, 2u, 4u, 6u);
   champsim::ptw_builder buildA{};
-  std::vector<champsim::channel> channels{num_uls};
+  std::vector<champsim::channel> channels;
   std::vector<champsim::channel*> channel_pointers{};
-  for (auto& elem : channels)
-    channel_pointers.push_back(&elem);
+  uint64_t num_reqs;
+  for (unsigned i = 0; i < num_uls; i++)
+    channel_pointers.push_back(&channels.emplace_back(num_reqs, "", 8, 8, 8, champsim::data::bits{}, false));
   buildA.upper_levels(std::move(channel_pointers));
   buildA.mshr_factor((double)mshr_factor);
 
@@ -105,10 +107,11 @@ TEST_CASE("Specifying the PTW's MSHR size overrides the MSHR factor")
   auto num_uls = 2u;
   auto mshr_factor = 2u;
   champsim::ptw_builder buildA{};
-  std::vector<champsim::channel> channels{num_uls};
+  std::vector<champsim::channel> channels;
   std::vector<champsim::channel*> channel_pointers{};
-  for (auto& elem : channels)
-    channel_pointers.push_back(&elem);
+  uint64_t num_reqs;
+  for (unsigned i = 0; i < num_uls; i++)
+    channel_pointers.push_back(&channels.emplace_back(num_reqs, "", 8, 8, 8, champsim::data::bits{}, false));
   buildA.upper_levels(std::move(channel_pointers));
   buildA.mshr_factor((double)mshr_factor);
 
@@ -144,10 +147,11 @@ TEST_CASE("The bandwidth factor uses the number of upper levels to determine the
   auto num_uls = GENERATE(1u, 2u, 4u, 6u);
   auto bandwidth_factor = 2u;
   champsim::ptw_builder buildA{};
-  std::vector<champsim::channel> channels{num_uls};
+  std::vector<champsim::channel> channels;
   std::vector<champsim::channel*> channel_pointers{};
-  for (auto& elem : channels)
-    channel_pointers.push_back(&elem);
+  uint64_t num_reqs;
+  for (unsigned i = 0; i < num_uls; i++)
+    channel_pointers.push_back(&channels.emplace_back(num_reqs, "", 8, 8, 8, champsim::data::bits{}, false));
   buildA.upper_levels(std::move(channel_pointers));
   buildA.bandwidth_factor((double)bandwidth_factor);
 
@@ -182,10 +186,11 @@ TEST_CASE("The bandwidth factor can control the PTW's default tag bandwidth")
   auto num_uls = 2u;
   auto bandwidth_factor = GENERATE(1u, 2u, 4u, 6u);
   champsim::ptw_builder buildA{};
-  std::vector<champsim::channel> channels{num_uls};
+  std::vector<champsim::channel> channels;
   std::vector<champsim::channel*> channel_pointers{};
-  for (auto& elem : channels)
-    channel_pointers.push_back(&elem);
+  uint64_t num_reqs;
+  for (unsigned i = 0; i < num_uls; i++)
+    channel_pointers.push_back(&channels.emplace_back(num_reqs, "", 8, 8, 8, champsim::data::bits{}, false));
   buildA.upper_levels(std::move(channel_pointers));
   buildA.bandwidth_factor((double)bandwidth_factor);
 
@@ -220,10 +225,11 @@ TEST_CASE("Specifying the tag bandwidth overrides the PTW's bandwidth factor")
   auto num_uls = 2u;
   auto bandwidth_factor = 2u;
   champsim::ptw_builder buildA{};
-  std::vector<champsim::channel> channels{num_uls};
+  std::vector<champsim::channel> channels;
   std::vector<champsim::channel*> channel_pointers{};
-  for (auto& elem : channels)
-    channel_pointers.push_back(&elem);
+  uint64_t num_reqs;
+  for (unsigned i = 0; i < num_uls; i++)
+    channel_pointers.push_back(&channels.emplace_back(num_reqs, "", 8, 8, 8, champsim::data::bits{}, false));
   buildA.upper_levels(std::move(channel_pointers));
   buildA.bandwidth_factor((double)bandwidth_factor);
 

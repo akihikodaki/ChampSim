@@ -266,7 +266,7 @@ bool O3_CPU::do_fetch_instruction(std::deque<ooo_model_instr>::iterator begin, s
 
   fetch_packet.token = std::move(instr_depend_on_me);
 
-  return L1I_bus.issue_read(fetch_packet);
+  return L1I_bus.issue_read<Event::FETCH>(fetch_packet);
 }
 
 long O3_CPU::promote_to_decode()
@@ -608,7 +608,7 @@ bool O3_CPU::do_complete_store(const LSQ_ENTRY& sq_entry)
     fmt::print("[SQ] {} instr_id: {} vaddr: {}\n", __func__, data_packet.instr_id, data_packet.v_address);
   }
 
-  return L1D_bus.issue_write(data_packet);
+  return L1D_bus.issue_write<Event::STORE>(data_packet);
 }
 
 bool O3_CPU::execute_load(const LSQ_ENTRY& lq_entry, std::any&& token)
@@ -623,7 +623,7 @@ bool O3_CPU::execute_load(const LSQ_ENTRY& lq_entry, std::any&& token)
     fmt::print("[LQ] {} instr_id: {} vaddr: {}\n", __func__, data_packet.instr_id, data_packet.v_address);
   }
 
-  return L1D_bus.issue_read(data_packet);
+  return L1D_bus.issue_read<Event::LOAD>(data_packet);
 }
 
 void O3_CPU::do_complete_execution(ooo_model_instr& instr)
@@ -665,6 +665,8 @@ long O3_CPU::handle_memory_return()
     auto& l1i_entry = L1I_bus.lower_level->returned.front();
     auto& instr_depend_on_me = *std::any_cast<std::vector<uint64_t>>(&l1i_entry.token);
 
+    handle_event<Event::CHANNEL_RESPONSE>(l1i_entry);
+
     while (fetch_bw.has_remaining() && !instr_depend_on_me.empty()) {
       auto fetched = std::find_if(std::begin(IFETCH_BUFFER), std::end(IFETCH_BUFFER), ooo_model_instr::matches_id(instr_depend_on_me.front()));
       if (fetched != std::end(IFETCH_BUFFER) && champsim::block_number{fetched->ip} == champsim::block_number{l1i_entry.v_address} && fetched->fetch_issued) {
@@ -689,6 +691,7 @@ long O3_CPU::handle_memory_return()
 
   auto l1d_it = std::begin(L1D_bus.lower_level->returned);
   for (champsim::bandwidth l1d_bw{L1D_BANDWIDTH}; l1d_bw.has_remaining() && l1d_it != std::end(L1D_bus.lower_level->returned); l1d_bw.consume(), ++l1d_it) {
+    handle_event<Event::CHANNEL_RESPONSE>(*l1d_it);
     auto& lq_entry = std::any_cast<std::reference_wrapper<std::optional<LSQ_ENTRY>>>(l1d_it->token).get();
     lq_entry->finish(std::begin(ROB), std::end(ROB));
     lq_entry.reset();
@@ -825,17 +828,25 @@ void LSQ_ENTRY::finish(ooo_model_instr& rob_entry) const
   }
 }
 
-bool CacheBus::issue_read(request_type data_packet)
+template <Event e>
+inline bool CacheBus::issue_read(request_type& data_packet)
 {
   data_packet.address = data_packet.v_address;
   data_packet.is_translated = false;
   data_packet.cpu = cpu;
   data_packet.type = access_type::LOAD;
 
-  return lower_level->add_rq(data_packet);
+  if (!lower_level->add_rq(data_packet)) {
+    return false;
+  }
+
+  handle_event<e>(*lower_level, data_packet);
+
+  return true;
 }
 
-bool CacheBus::issue_write(request_type data_packet)
+template <Event e>
+inline bool CacheBus::issue_write(request_type& data_packet)
 {
   data_packet.address = data_packet.v_address;
   data_packet.is_translated = false;
@@ -843,5 +854,11 @@ bool CacheBus::issue_write(request_type data_packet)
   data_packet.type = access_type::WRITE;
   data_packet.response_requested = false;
 
-  return lower_level->add_wq(data_packet);
+  if (!lower_level->add_wq(data_packet)) {
+    return false;
+  }
+
+  handle_event<e>(*lower_level, data_packet);
+
+  return true;
 }

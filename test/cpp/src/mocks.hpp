@@ -24,7 +24,8 @@ class do_nothing_MRC : public champsim::operable
   int latency = 0;
 
 public:
-  champsim::channel queues{};
+  uint64_t num_reqs;
+  champsim::channel queues{num_reqs, {}, 8, 8, 8, {}, {}};
   std::deque<champsim::address> addresses{};
   do_nothing_MRC(int lat) : champsim::operable(), latency(lat) {}
   do_nothing_MRC() : do_nothing_MRC(0) {}
@@ -80,7 +81,8 @@ class filter_MRC : public champsim::operable
   std::size_t mpacket_count = 0;
 
 public:
-  champsim::channel queues{};
+  uint64_t num_reqs;
+  champsim::channel queues{num_reqs, {}, 8, 8, 8, {}, {}};
   filter_MRC(champsim::address ret_addr_, int lat) : champsim::operable(), ret_addr(ret_addr_), latency(lat) {}
   filter_MRC(champsim::address ret_addr_) : filter_MRC(ret_addr_, 0) {}
 
@@ -129,7 +131,8 @@ class release_MRC : public champsim::operable
   champsim::address ret_data{0x11111111};
 
 public:
-  champsim::channel queues{};
+  uint64_t num_reqs;
+  champsim::channel queues{num_reqs, {}, 8, 8, 8, {}, {}};
   release_MRC() : champsim::operable() {}
 
   long operate() override
@@ -195,7 +198,8 @@ struct queue_issue_MRP : public champsim::operable {
   using response_type = typename champsim::channel::response_type;
 
   std::deque<response_type> returned{};
-  champsim::channel queues{};
+  uint64_t num_reqs;
+  champsim::channel queues{num_reqs, {}, 8, 8, 8, {}, {}};
   long cycle_count = 0;
 
   struct result_data {
@@ -247,7 +251,7 @@ struct StringMaker<queue_issue_MRP::result_data> {
 struct to_wq_MRP final : public queue_issue_MRP {
   using queue_issue_MRP::queue_issue_MRP;
   using request_type = typename queue_issue_MRP::request_type;
-  bool issue(const queue_issue_MRP::request_type& pkt)
+  bool issue(queue_issue_MRP::request_type& pkt)
   {
     packets.push_back({pkt, cycle_count, 0});
     return queues.add_wq(pkt);
@@ -260,7 +264,7 @@ struct to_wq_MRP final : public queue_issue_MRP {
 struct to_rq_MRP final : public queue_issue_MRP {
   using queue_issue_MRP::queue_issue_MRP;
   using request_type = typename queue_issue_MRP::request_type;
-  bool issue(const queue_issue_MRP::request_type& pkt)
+  bool issue(queue_issue_MRP::request_type& pkt)
   {
     packets.push_back({pkt, cycle_count, 0});
     return queues.add_rq(pkt);
@@ -273,7 +277,7 @@ struct to_rq_MRP final : public queue_issue_MRP {
 struct to_pq_MRP final : public queue_issue_MRP {
   using queue_issue_MRP::queue_issue_MRP;
   using request_type = typename queue_issue_MRP::request_type;
-  bool issue(const queue_issue_MRP::request_type& pkt)
+  bool issue(queue_issue_MRP::request_type& pkt)
   {
     packets.push_back({pkt, cycle_count, 0});
     return queues.add_pq(pkt);

@@ -46,7 +46,8 @@ SCENARIO("Prefetch metadata from an issued prefetch is seen in the lower level")
     constexpr uint64_t hit_latency = 2;
     constexpr uint64_t fill_latency = 2;
     do_nothing_MRC mock_ll;
-    champsim::channel lower_queues{};
+    uint64_t num_reqs;
+    champsim::channel lower_queues{num_reqs, {}, 8, 8, 8, {}, {}};
     CACHE lower{champsim::cache_builder{champsim::defaults::default_l1d}
                     .name("432a-lower")
                     .upper_levels({&lower_queues})
@@ -104,7 +105,8 @@ SCENARIO("Prefetch metadata from an filled block is seen in the upper level")
     constexpr uint64_t fill_latency = 2;
     constexpr uint32_t seed_metadata = 0xcafebabe;
     do_nothing_MRC mock_ll;
-    champsim::channel lower_queues{};
+    uint64_t num_reqs;
+    champsim::channel lower_queues{num_reqs, {}, 8, 8, 8, {}, {}};
     to_rq_MRP mock_ul;
 
     CACHE lower{champsim::cache_builder{champsim::defaults::default_l1d}

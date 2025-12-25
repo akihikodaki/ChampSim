@@ -38,6 +38,7 @@
 #include "channel.h"
 #include "core_builder.h"
 #include "core_stats.h"
+#include "events.h"
 #include "instruction.h"
 #include "modules.h"
 #include "operable.h"
@@ -59,8 +60,10 @@ class CacheBus
 
 public:
   CacheBus(uint32_t cpu_idx, champsim::channel* ll) : lower_level(ll), cpu(cpu_idx) {}
-  bool issue_read(request_type packet);
-  bool issue_write(request_type packet);
+  template <Event e>
+  bool issue_read(request_type& packet);
+  template <Event e>
+  bool issue_write(request_type& packet);
 };
 
 struct LSQ_ENTRY : champsim::program_ordered<LSQ_ENTRY> {

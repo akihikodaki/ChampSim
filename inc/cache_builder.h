@@ -41,6 +41,7 @@ namespace detail
 {
 struct cache_builder_base {
   std::string m_name{};
+  std::string m_local_name{};
   chrono::picoseconds m_clock_period{250};
   std::optional<champsim::data::bytes> m_size{};
   std::optional<uint32_t> m_sets{};
@@ -96,6 +97,10 @@ public:
    * This will be a unique identifier in the statistics.
    */
   self_type& name(std::string name_);
+  /**
+   * Specify the name of the cache local to the core.
+   */
+  self_type& local_name(std::string name_);
 
   /**
    * Specify the clock period of the cache.
@@ -322,6 +327,13 @@ template <typename P, typename R>
 auto champsim::cache_builder<P, R>::name(std::string name_) -> self_type&
 {
   m_name = name_;
+  return *this;
+}
+
+template <typename P, typename R>
+auto champsim::cache_builder<P, R>::local_name(std::string local_name_) -> self_type&
+{
+  m_local_name = local_name_;
   return *this;
 }
 

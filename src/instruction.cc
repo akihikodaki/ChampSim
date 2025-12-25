@@ -21,32 +21,32 @@ std::ostream& operator<<(std::ostream& os, const ooo_model_instr& instr)
   fmt::print(os, "{}: ", instr.ip);
 
   if (instr.destination_registers.empty() && instr.destination_memory.empty()) {
-    fmt::print(os, "NOP    ");
+    fmt::print(os, "NOP     ");
   } else
     switch (instr.branch) {
     case NOT_BRANCH:
-      fmt::print(os, "Instr   ");
+      fmt::print(os, "Instr    ");
       break;
     case BRANCH_DIRECT_JUMP:
-      fmt::print(os, "Jump    ");
+      fmt::print(os, "Jump     ");
       break;
     case BRANCH_INDIRECT:
-      fmt::print(os, "IndJump ");
+      fmt::print(os, "IndJump  ");
       break;
     case BRANCH_CONDITIONAL:
-      fmt::print(os, "CondBr  ");
+      fmt::print(os, "CondBr   ");
       break;
     case BRANCH_DIRECT_CALL:
-      fmt::print(os, "Call    ");
+      fmt::print(os, "Call     ");
       break;
     case BRANCH_INDIRECT_CALL:
-      fmt::print(os, "IndCall ");
+      fmt::print(os, "IndCall  ");
       break;
     case BRANCH_RETURN:
-      fmt::print(os, "Return  ");
+      fmt::print(os, "Return   ");
       break;
     case BRANCH_OTHER:
-      fmt::print(os, "OtherBr ");
+      fmt::print(os, "OtherBr  ");
       break;
     }
 

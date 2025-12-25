@@ -42,10 +42,11 @@ TEST_CASE("The sets factor uses the number of upper levels to determine the cach
   auto num_uls = GENERATE(1u, 2u, 4u, 8u);
   auto sets_factor = 2u;
   champsim::cache_builder buildA{};
-  std::vector<champsim::channel> channels{num_uls};
+  std::vector<champsim::channel> channels;
   std::vector<champsim::channel*> channel_pointers{};
-  for (auto& elem : channels)
-    channel_pointers.push_back(&elem);
+  uint64_t num_reqs;
+  for (unsigned i = 0; i < num_uls; i++)
+    channel_pointers.push_back(&channels.emplace_back(num_reqs, "", 8, 8, 8, champsim::data::bits{}, false));
   buildA.upper_levels(std::move(channel_pointers));
   buildA.sets_factor((double)sets_factor);
 
@@ -59,10 +60,11 @@ TEST_CASE("The sets factor can control the cache's default number of sets")
   auto num_uls = 2u;
   auto sets_factor = GENERATE(1u, 2u, 4u, 8u);
   champsim::cache_builder buildA{};
-  std::vector<champsim::channel> channels{num_uls};
+  std::vector<champsim::channel> channels;
   std::vector<champsim::channel*> channel_pointers{};
-  for (auto& elem : channels)
-    channel_pointers.push_back(&elem);
+  uint64_t num_reqs;
+  for (unsigned i = 0; i < num_uls; i++)
+    channel_pointers.push_back(&channels.emplace_back(num_reqs, "", 8, 8, 8, champsim::data::bits{}, false));
   buildA.upper_levels(std::move(channel_pointers));
   buildA.sets_factor((double)sets_factor);
 
@@ -76,10 +78,11 @@ TEST_CASE("Specifying the sets overrides the cache's sets factor")
   auto num_uls = 2u;
   auto sets_factor = 2u;
   champsim::cache_builder buildA{};
-  std::vector<champsim::channel> channels{num_uls};
+  std::vector<champsim::channel> channels;
   std::vector<champsim::channel*> channel_pointers{};
-  for (auto& elem : channels)
-    channel_pointers.push_back(&elem);
+  uint64_t num_reqs;
+  for (unsigned i = 0; i < num_uls; i++)
+    channel_pointers.push_back(&channels.emplace_back(num_reqs, "", 8, 8, 8, champsim::data::bits{}, false));
   buildA.upper_levels(std::move(channel_pointers));
   buildA.sets_factor((double)sets_factor);
 

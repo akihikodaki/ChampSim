@@ -55,8 +55,13 @@ private:
     Kanata& kanata;
     const uint64_t id;
     const bool flushed;
+    uint8_t num_lanes = 1;
+    size_t num_pending_stores;
 
-    Instr(Kanata& kanata_, uint64_t id_, bool flushed_) : kanata(kanata_), id(id_), flushed(flushed_) {}
+    Instr(Kanata& kanata_, uint64_t id_, bool flushed_, size_t num_pending_stores_)
+        : kanata(kanata_), id(id_), flushed(flushed_), num_pending_stores(num_pending_stores_)
+    {
+    }
 
     ~Instr();
     void start(uint8_t lane, const std::string& stage);
@@ -95,8 +100,19 @@ private:
     std::deque<T> storage;
   };
 
+  struct Request final {
+    std::shared_ptr<Instr> instr;
+    std::string stage;
+    uint8_t lane;
+    bool forked;
+
+    void start(std::string local_stage);
+    void retire();
+    void retire(std::string local_stage);
+  };
+
   template <typename ID, typename Label>
-  std::shared_ptr<Instr> init(uint32_t cpu, ID id, Label label, bool flushed)
+  std::shared_ptr<Instr> init(uint32_t cpu, ID id, Label label, bool flushed, size_t num_stores)
   {
     auto index = num;
 
@@ -115,14 +131,47 @@ private:
       file->print("Kanata\t0004\nC=\t{}\n", current_cycle);
     }
 
-    auto instr = std::make_shared<Instr>(*this, num - skip, flushed);
+    auto instr = std::make_shared<Instr>(*this, num - skip, flushed, num_stores);
     file->print("I\t{}\t{}\t{}\nL\t{}\t0\t{}\n", instr->id, id, cpu, instr->id, label);
     return instr;
   }
 
+  void complete_cache(const CACHE& cache, uint64_t id, char result)
+  {
+    auto req = reqs.find(id);
+    if (!req)
+      return;
+
+    if (!req->forked)
+      req->start(cache.LOCAL_NAME + result);
+
+    req->retire();
+  }
+
+  void dispatch(const channel& lower, const channel::request_type& req, const std::shared_ptr<Instr>& instr);
+  void dispatch(const channel& lower, const channel::request_type& req, const std::shared_ptr<Instr>& instr, uint8_t lane, bool forked = false);
+
+  void fork(const channel& lower, uint64_t id, const channel::request_type& req)
+  {
+    auto kanata = reqs.find(id);
+    if (!kanata)
+      return;
+
+    dispatch(lower, req, kanata->instr);
+  }
+
+  void forward(const channel& lower, uint64_t id, const channel::request_type& req)
+  {
+    auto kanata = reqs.find(id);
+    if (!kanata)
+      return;
+
+    dispatch(lower, req, kanata->instr, kanata->lane);
+  }
+
   void init(const O3_CPU& cpu, const ooo_model_instr& o3)
   {
-    auto instr = init(cpu.cpu, o3.instr_id, fmt::streamed(o3), false);
+    auto instr = init(cpu.cpu, o3.instr_id, fmt::streamed(o3), false, o3.destination_memory.size());
     if (!instr)
       return;
 
@@ -136,6 +185,25 @@ private:
 
   void retire();
 
+  void retire(uint32_t cpu, std::shared_ptr<Instr>& instr)
+  {
+    instr.reset();
+
+    while (!cpus[cpu].empty() && !cpus[cpu].front())
+      cpus[cpu].pop();
+
+    retire();
+  }
+
+  void start(const CACHE& cache, const CACHE::tag_lookup_type& lookup, char stage)
+  {
+    auto kanata = reqs.find(lookup.id);
+    if (!kanata)
+      return;
+
+    kanata->start(cache.LOCAL_NAME + stage);
+  }
+
   void start(const O3_CPU& cpu, const ooo_model_instr& o3, const std::string& stage)
   {
     if (cpu.cpu >= cpus.size())
@@ -148,9 +216,19 @@ private:
     (*kanata)->start(0, stage);
   }
 
+  void start(uint64_t id, const std::string& stage)
+  {
+    auto kanata = reqs.find(id);
+    if (!kanata)
+      return;
+
+    kanata->start(stage);
+  }
+
   std::optional<fmt::ostream> file;
   std::optional<std::string> file_name;
   std::vector<Queue<std::shared_ptr<Instr>>> cpus;
+  Queue<Request> reqs;
   uint64_t current_cycle = 0;
   uint64_t max = UINT64_MAX;
   uint64_t num = 0;
@@ -163,6 +241,78 @@ private:
 template <Event e, typename... Args>
 inline void handle_event([[maybe_unused]] Kanata& kanata, [[maybe_unused]] const Args&... args)
 {
+}
+
+template <>
+inline void handle_event<Event::CACHE_EXEC>(Kanata& kanata, const CACHE& cache, const CACHE::tag_lookup_type& lookup)
+{
+  kanata.start(cache, lookup, 'x');
+}
+
+template <>
+inline void handle_event<Event::CACHE_FILL>(Kanata& kanata, const CACHE& cache, const CACHE::fill_type& fill)
+{
+  for (auto req : fill.reqs)
+    kanata.complete_cache(cache, req.id, 'c');
+}
+
+template <>
+inline void handle_event<Event::CACHE_FORWARD>(Kanata& kanata, const CACHE& cache, const CACHE::fill_type& fill, const channel::request_type& req)
+{
+  kanata.forward(*cache.lower_level, fill.reqs.front().id, req);
+}
+
+template <>
+inline void handle_event<Event::CACHE_HIT>(Kanata& kanata, const CACHE& cache, const CACHE::tag_lookup_type& lookup)
+{
+  kanata.complete_cache(cache, lookup.id, 'c');
+}
+
+template <>
+inline void handle_event<Event::CACHE_MERGE>(Kanata& kanata, const CACHE& cache, const CACHE::tag_lookup_type& lookup)
+{
+  kanata.start(cache, lookup, 'm');
+}
+
+template <>
+inline void handle_event<Event::CACHE_PREFETCH>(Kanata& kanata, const channel::request_type& req, const bool& fill_this_level)
+{
+  auto instr = kanata.init(req.cpu, "", fmt::format("Prefetch [{}]{}", req.address, fill_this_level ? " (fill)" : ""), true, 0);
+  if (!instr)
+    return;
+
+  auto& kanata_req = kanata.reqs.emplace(req.id);
+  kanata_req.instr = std::move(instr);
+  kanata_req.lane = 0;
+  kanata_req.start("Ds");
+}
+
+template <>
+inline void handle_event<Event::CACHE_TRANSLATE>(Kanata& kanata, const CACHE& cache, const CACHE::tag_lookup_type& lookup, const channel::request_type& req)
+{
+  kanata.fork(*cache.lower_translate, lookup.id, req);
+}
+
+template <>
+inline void handle_event<Event::CACHE_WRITE>(Kanata& kanata, const CACHE& cache, const CACHE::fill_type& fill)
+{
+  kanata.start(fill.reqs.front().id, cache.LOCAL_NAME + 'w');
+}
+
+template <>
+inline void handle_event<Event::CACHE_WRITEBACK>(Kanata& kanata, const CACHE& cache, const CACHE::fill_type& fill, const channel::request_type& req)
+{
+  kanata.fork(*cache.lower_level, fill.reqs.front().id, req);
+}
+
+template <>
+inline void handle_event<Event::CHANNEL_RESPONSE>(Kanata& kanata, const channel::response_type& response)
+{
+  auto req = kanata.reqs.find(response.id);
+  if (!req)
+    return;
+
+  req->retire();
 }
 
 template <>
@@ -199,9 +349,61 @@ inline void handle_event<Event::DISPATCH>(Kanata& kanata, const O3_CPU& cpu, con
 }
 
 template <>
+inline void handle_event<Event::DRAM_COMPLETE>(Kanata& kanata, const DRAM_CHANNEL::status_type& status)
+{
+  for (auto& req : status.reqs) {
+    auto kanata_req = kanata.reqs.find(req.id);
+    if (!kanata_req || !kanata_req->instr)
+      continue;
+
+    if (!kanata_req->forked)
+      kanata_req->start("DRAMc");
+
+    kanata_req->retire();
+  }
+}
+
+template <>
+inline void handle_event<Event::DRAM_DISPATCH>(Kanata& kanata, const DRAM_CHANNEL::status_type& status)
+{
+  kanata.start(status.reqs.front().id, "DRAMds");
+}
+
+template <>
+inline void handle_event<Event::DRAM_EXEC>(Kanata& kanata, const DRAM_CHANNEL::status_type& status)
+{
+  kanata.start(status.reqs.front().id, "DRAMx");
+}
+
+template <>
+inline void handle_event<Event::DRAM_ISSUE>(Kanata& kanata, const DRAM_CHANNEL::status_type& status)
+{
+  kanata.start(status.reqs.front().id, "DRAMi");
+}
+
+template <>
+inline void handle_event<Event::DRAM_MERGE>(Kanata& kanata, const DRAM_CHANNEL::status_type& status)
+{
+  kanata.start(status.reqs.front().id, "DRAMm");
+}
+
+template <>
 inline void handle_event<Event::EXEC>(Kanata& kanata, const O3_CPU& cpu, const ooo_model_instr& instr)
 {
   kanata.start(cpu, instr, "X");
+}
+
+template <>
+inline void handle_event<Event::FETCH>(Kanata& kanata, const channel& channel, const channel::request_type& req)
+{
+  if (req.cpu >= kanata.cpus.size())
+    return;
+
+  auto instr = kanata.cpus[req.cpu].find(req.instr_id);
+  if (!instr)
+    return;
+
+  kanata.dispatch(channel, req, *instr, 0);
 }
 
 template <>
@@ -232,6 +434,31 @@ inline void handle_event<Event::ISSUE>(Kanata& kanata, const O3_CPU& cpu, const 
 }
 
 template <>
+inline void handle_event<Event::LOAD>(Kanata& kanata, const channel& channel, const channel::request_type& req)
+{
+  if (req.cpu >= kanata.cpus.size())
+    return;
+
+  auto instr = kanata.cpus[req.cpu].find(req.instr_id);
+  if (!instr)
+    return;
+
+  kanata.dispatch(channel, req, *instr);
+}
+
+template <>
+inline void handle_event<Event::PTW_COMPLETE>(Kanata& kanata, const PageTableWalker::mshr_type& mshr)
+{
+  kanata.start(mshr.id, "PTWc");
+}
+
+template <>
+inline void handle_event<Event::PTW_STEP>(Kanata& kanata, const PageTableWalker& ptw, const PageTableWalker::mshr_type& mshr, const channel::request_type& req)
+{
+  kanata.forward(ptw.lower_level(), mshr.id, req);
+}
+
+template <>
 inline void handle_event<Event::RENAME>(Kanata& kanata, const O3_CPU& cpu, const ooo_model_instr& instr)
 {
   kanata.start(cpu, instr, "R");
@@ -249,14 +476,27 @@ inline void handle_event<Event::RETIRE>(Kanata& kanata, [[maybe_unused]] const u
     if (!instr)
       continue;
 
-    (*instr)->start(0, "S");
-    instr->reset();
+    (*instr)->start(0, "W");
+
+    if (!(*instr)->num_pending_stores)
+      kanata.retire(cpu, *instr);
   }
+}
 
-  while (!kanata.cpus[cpu].empty() && !kanata.cpus[cpu].front())
-    kanata.cpus[cpu].pop();
+template <>
+inline void handle_event<Event::STORE>(Kanata& kanata, const channel& channel, const channel::request_type& req)
+{
+  if (req.cpu >= kanata.cpus.size())
+    return;
 
-  kanata.retire();
+  auto instr = kanata.cpus[req.cpu].find(req.instr_id);
+  if (!instr)
+    return;
+
+  kanata.dispatch(channel, req, *instr);
+
+  if (!--(*instr)->num_pending_stores)
+    kanata.retire(req.cpu, *instr);
 }
 
 template <Event e, typename... Args>

@@ -56,6 +56,7 @@ class channel
     uint32_t pf_metadata = 0;
     uint32_t cpu = std::numeric_limits<uint32_t>::max();
 
+    uint64_t id = UINT64_MAX;
     champsim::address address{};
     champsim::address v_address{};
     champsim::address data{};
@@ -66,25 +67,26 @@ class channel
   };
 
   struct response {
+    uint64_t id;
     champsim::address address{};
     champsim::address v_address{};
     champsim::address data{};
     uint32_t pf_metadata = 0;
     std::any token{};
 
-    response(champsim::address addr, champsim::address v_addr, champsim::address data_, uint32_t pf_meta, std::any _token)
-        : address(addr), v_address(v_addr), data(data_), pf_metadata(pf_meta), token(_token)
+    response(uint64_t id_, champsim::address addr, champsim::address v_addr, champsim::address data_, uint32_t pf_meta, std::any _token)
+        : id(id_), address(addr), v_address(v_addr), data(data_), pf_metadata(pf_meta), token(_token)
     {
     }
-    explicit response(request req) : response(req.address, req.v_address, req.data, req.pf_metadata, req.token) {}
+    explicit response(request req) : response(req.id, req.address, req.v_address, req.data, req.pf_metadata, req.token) {}
   };
 
   template <typename R>
-  bool do_add_queue(R& queue, std::size_t queue_size, const typename R::value_type& packet);
+  bool do_add_queue(R& queue, std::size_t queue_size, typename R::value_type& packet);
 
-  std::size_t RQ_SIZE = std::numeric_limits<std::size_t>::max();
-  std::size_t PQ_SIZE = std::numeric_limits<std::size_t>::max();
-  std::size_t WQ_SIZE = std::numeric_limits<std::size_t>::max();
+  std::size_t RQ_SIZE;
+  std::size_t PQ_SIZE;
+  std::size_t WQ_SIZE;
   champsim::data::bits OFFSET_BITS{};
   bool match_offset_bits = false;
 
@@ -93,17 +95,19 @@ public:
   using request_type = request;
   using stats_type = cache_queue_stats;
 
+  uint64_t& num_reqs;
+  std::string LL_NAME;
   std::deque<request_type> RQ{}, PQ{}, WQ{};
   std::deque<response_type> returned{};
 
   stats_type sim_stats{}, roi_stats{};
 
-  channel() = default;
-  channel(std::size_t rq_size, std::size_t pq_size, std::size_t wq_size, champsim::data::bits offset_bits, bool match_offset);
+  channel(uint64_t& num_reqs, std::string ll_name, std::size_t rq_size, std::size_t pq_size, std::size_t wq_size, champsim::data::bits offset_bits,
+          bool match_offset);
 
-  bool add_rq(const request_type& packet);
-  bool add_wq(const request_type& packet);
-  bool add_pq(const request_type& packet);
+  bool add_rq(request_type& packet);
+  bool add_wq(request_type& packet);
+  bool add_pq(request_type& packet);
 
   [[nodiscard]] std::size_t rq_occupancy() const;
   [[nodiscard]] std::size_t wq_occupancy() const;

@@ -98,12 +98,19 @@ struct DRAM_CHANNEL final : public champsim::operable {
   struct request_type {
     uint32_t pf_metadata = 0;
 
+    uint64_t id;
     champsim::address address{};
     champsim::address v_address{};
     champsim::address data{};
 
     std::any token{};
     std::deque<response_type>* to_return{};
+
+    request_type(const typename champsim::channel::request_type& packet, champsim::channel* ul)
+        : pf_metadata(packet.pf_metadata), id(packet.id), address(packet.address), v_address(packet.v_address), data(packet.data), token(packet.token),
+          to_return(packet.response_requested ? &ul->returned : nullptr)
+    {
+    }
   };
 
   struct status_type {
@@ -118,7 +125,7 @@ struct DRAM_CHANNEL final : public champsim::operable {
 
     std::vector<request_type> reqs{};
 
-    explicit status_type(const typename champsim::channel::request_type& req);
+    explicit status_type(const typename champsim::channel::request_type& req, champsim::channel* ul);
   };
   using value_type = status_type;
   using queue_type = std::vector<std::optional<value_type>>;
@@ -203,7 +210,7 @@ class MEMORY_CONTROLLER : public champsim::operable
 
   void initiate_requests();
   bool add_rq(const request_type& packet, champsim::channel* ul);
-  bool add_wq(const request_type& packet);
+  bool add_wq(const request_type& packet, champsim::channel* ul);
 
   const DRAM_ADDRESS_MAPPING address_mapping;
 

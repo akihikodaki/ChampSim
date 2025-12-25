@@ -25,7 +25,7 @@ from . import cxx
 pmem_fmtstr = 'champsim::chrono::picoseconds{{{clock_period_dbus}}}, champsim::chrono::picoseconds{{{clock_period_mc}}}, std::size_t{{{_tRP}}}, std::size_t{{{_tRCD}}}, std::size_t{{{_tCAS}}}, std::size_t{{{_tRAS}}}, champsim::chrono::microseconds{{{_refresh_period}}}, {{{_ulptr}}}, {rq_size}, {wq_size}, {channels}, champsim::data::bytes{{{channel_width}}}, {_bank_rows}, {_bank_columns}, {ranks}, {bankgroups}, {banks}, {_refreshes_per_period}'
 vmem_fmtstr = 'champsim::data::bytes{{{pte_page_size}}}, {num_levels}, champsim::chrono::picoseconds{{{clock_period}*{minor_fault_penalty}}}, {dram_name}, {_randomization}'
 
-queue_fmtstr = '{rq_size}, {pq_size}, {wq_size}, champsim::data::bits{{{_offset_bits}}}, {_queue_check_full_addr:b}'
+queue_fmtstr = 'num_reqs, "{ll_name}", {rq_size}, {pq_size}, {wq_size}, champsim::data::bits{{{_offset_bits}}}, {_queue_check_full_addr:b}'
 
 core_builder_parts = {
     'ifetch_buffer_size': '.ifetch_buffer_size({ifetch_buffer_size})',
@@ -140,6 +140,7 @@ def get_cache_builder(elem, ul_pairs):
     '''
     required_parts = [
         '.name("{name}")',
+        '.local_name("{local_name}")',
         '.upper_levels({{{^upper_levels_string}}})',
     ]
 
@@ -248,6 +249,7 @@ def get_builder_function_call(class_name, builders):
 
 def cache_queue_defaults(cache):
     return {
+        'll_name': cache['local_name'],
         'rq_size': cache.get('rq_size', cache['_queue_factor']),
         'wq_size': cache.get('wq_size', cache['_queue_factor']),
         'pq_size': cache.get('pq_size', cache['_queue_factor']),
@@ -257,6 +259,7 @@ def cache_queue_defaults(cache):
 
 def ptw_queue_defaults(ptw):
     return {
+        'll_name': ptw['local_name'],
         'rq_size': ptw.get('rq_size', ptw['_queue_factor']),
         'wq_size': 0,
         'pq_size': 0,
@@ -300,6 +303,7 @@ def decorate_queues(caches, ptws, pmem):
             *({c['name']: cache_queue_defaults(c)} for c in caches),
             *({p['name']: ptw_queue_defaults(p)} for p in ptws),
             {pmem['name']: {
+                    'll_name': pmem['name'],
                     'rq_size':'std::numeric_limits<std::size_t>::max()',
                     'wq_size':'std::numeric_limits<std::size_t>::max()',
                     'pq_size':'std::numeric_limits<std::size_t>::max()',
@@ -430,6 +434,7 @@ def get_instantiation_header(num_cpus, env, build_id):
         'std::forward_list<PageTableWalker> ptws;',
         'std::forward_list<CACHE> caches;',
         'std::forward_list<O3_CPU> cores;',
+        'uint64_t num_reqs;',
 
         'public:',
         f'constexpr static std::size_t num_cpus = {num_cpus};',

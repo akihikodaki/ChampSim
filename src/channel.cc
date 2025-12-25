@@ -24,13 +24,14 @@
 #include "instruction.h"
 #include "util/to_underlying.h" // for to_underlying
 
-champsim::channel::channel(std::size_t rq_size, std::size_t pq_size, std::size_t wq_size, champsim::data::bits offset_bits, bool match_offset)
-    : RQ_SIZE(rq_size), PQ_SIZE(pq_size), WQ_SIZE(wq_size), OFFSET_BITS(offset_bits), match_offset_bits(match_offset)
+champsim::channel::channel(uint64_t& num_reqs_, std::string ll_name, std::size_t rq_size, std::size_t pq_size, std::size_t wq_size,
+                           champsim::data::bits offset_bits, bool match_offset)
+    : RQ_SIZE(rq_size), PQ_SIZE(pq_size), WQ_SIZE(wq_size), OFFSET_BITS(offset_bits), match_offset_bits(match_offset), num_reqs(num_reqs_), LL_NAME(ll_name)
 {
 }
 
 template <typename R>
-bool champsim::channel::do_add_queue(R& queue, std::size_t queue_size, const typename R::value_type& packet)
+bool champsim::channel::do_add_queue(R& queue, std::size_t queue_size, typename R::value_type& packet)
 {
   // check occupancy
   if (std::size(queue) >= queue_size) {
@@ -38,13 +39,14 @@ bool champsim::channel::do_add_queue(R& queue, std::size_t queue_size, const typ
   }
 
   // Insert the packet ahead of the translation misses
+  packet.id = num_reqs++;
   auto fwd_pkt = packet;
   queue.push_back(fwd_pkt);
 
   return true;
 }
 
-bool champsim::channel::add_rq(const request_type& packet)
+bool champsim::channel::add_rq(request_type& packet)
 {
   if constexpr (champsim::debug_print) {
     fmt::print("[channel_rq] {} instr_id: {} address: {} v_address: {} type: {}\n", __func__, packet.instr_id, packet.address, packet.v_address,
@@ -64,7 +66,7 @@ bool champsim::channel::add_rq(const request_type& packet)
   return result;
 }
 
-bool champsim::channel::add_wq(const request_type& packet)
+bool champsim::channel::add_wq(request_type& packet)
 {
   if constexpr (champsim::debug_print) {
     fmt::print("[channel_wq] {} instr_id: {} address: {} v_address: {} type: {}\n", __func__, packet.instr_id, packet.address, packet.v_address,
@@ -84,7 +86,7 @@ bool champsim::channel::add_wq(const request_type& packet)
   return result;
 }
 
-bool champsim::channel::add_pq(const request_type& packet)
+bool champsim::channel::add_pq(request_type& packet)
 {
   if constexpr (champsim::debug_print) {
     fmt::print("[channel_pq] {} instr_id: {} address: {} v_address: {} type: {}\n", __func__, packet.instr_id, packet.address, packet.v_address,

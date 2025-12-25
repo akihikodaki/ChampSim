@@ -102,7 +102,8 @@ SCENARIO("The memory controller refreshes each bank at the proper rate")
 {
   GIVEN("A random request stream to the memory controller")
   {
-    champsim::channel channel_uut{32, 32, 32, champsim::data::bits{8}, false};
+    uint64_t num_reqs;
+    champsim::channel channel_uut{num_reqs, {}, 32, 32, 32, champsim::data::bits{8}, false};
     const std::size_t DRAM_CHANNELS = 1;
     const std::size_t DRAM_BANKS = 4;
     const std::size_t DRAM_BANKGROUPS = 8;

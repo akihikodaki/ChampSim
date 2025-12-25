@@ -34,23 +34,13 @@
 class VirtualMemory;
 class PageTableWalker : public champsim::operable
 {
-  struct pscl_entry {
-    champsim::address vaddr;
-    champsim::address ptw_addr;
-    std::size_t level;
-  };
-
-  struct pscl_indexer {
-    champsim::data::bits shamt;
-    auto operator()(const pscl_entry& entry) const { return entry.vaddr.slice_upper(shamt); }
-  };
-
-  using pscl_type = champsim::lru_table<pscl_entry, pscl_indexer, pscl_indexer>;
+public:
   using channel_type = champsim::channel;
   using request_type = typename channel_type::request_type;
   using response_type = typename channel_type::response_type;
 
   struct mshr_type {
+    uint64_t id;
     champsim::address address{};
     champsim::address v_address{};
     champsim::waitable<champsim::address> data{};
@@ -67,12 +57,26 @@ class PageTableWalker : public champsim::operable
     mshr_type(const request_type& req, std::size_t level);
   };
 
+private:
+  struct pscl_entry {
+    champsim::address vaddr;
+    champsim::address ptw_addr;
+    std::size_t level;
+  };
+
+  struct pscl_indexer {
+    champsim::data::bits shamt;
+    auto operator()(const pscl_entry& entry) const { return entry.vaddr.slice_upper(shamt); }
+  };
+
+  using pscl_type = champsim::lru_table<pscl_entry, pscl_indexer, pscl_indexer>;
+
   std::vector<mshr_type> MSHR;
   std::deque<mshr_type> finished;
   std::deque<mshr_type> completed;
 
   std::vector<channel_type*> upper_levels;
-  channel_type* lower_level;
+  channel_type* lower_level_;
 
   std::optional<mshr_type> handle_read(const request_type& pkt, channel_type* ul);
   std::optional<mshr_type> handle_fill(const mshr_type& fill_mshr);
@@ -97,6 +101,8 @@ public:
 
   void begin_phase() final;
   void print_deadlock() final;
+
+  const channel_type& lower_level() const { return *lower_level_; }
 };
 
 #endif

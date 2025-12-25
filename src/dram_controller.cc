@@ -22,6 +22,7 @@
 #include <fmt/core.h>
 
 #include "deadlock.h"
+#include "event_listeners.h"
 #include "instruction.h"
 #include "util/bits.h" // for lg2, bitmask
 #include "util/span.h"
@@ -112,9 +113,12 @@ long DRAM_CHANNEL::operate()
     for (auto& entry : RQ) {
       if (entry.has_value()) {
         for (auto& req : entry.value().reqs) {
-          req.to_return->emplace_back(req.address, req.v_address, req.data, req.pf_metadata, req.token);
+          if (req.to_return) {
+            req.to_return->emplace_back(req.id, req.address, req.v_address, req.data, req.pf_metadata, req.token);
+          }
         }
 
+        handle_event<Event::DRAM_COMPLETE>(*entry);
         ++progress;
         entry.reset();
       }
@@ -145,8 +149,12 @@ long DRAM_CHANNEL::finish_dbus_request()
 
   if (active_request != std::end(bank_request) && active_request->ready_time <= current_time) {
     for (auto& req : active_request->pkt->value().reqs) {
-      req.to_return->emplace_back(req.address, req.v_address, req.data, req.pf_metadata, req.token);
+      if (req.to_return) {
+        req.to_return->emplace_back(req.id, req.address, req.v_address, req.data, req.pf_metadata, req.token);
+      }
     }
+
+    handle_event<Event::DRAM_COMPLETE>(**active_request->pkt);
 
     active_request->valid = false;
 
@@ -279,6 +287,7 @@ long DRAM_CHANNEL::populate_dbus()
         ++sim_stats.RQ_ROW_BUFFER_MISS;
       }
 
+      handle_event<Event::DRAM_EXEC>(**iter_next_process->pkt);
       ++progress;
     } else {
       // Bus is congested
@@ -354,6 +363,7 @@ long DRAM_CHANNEL::service_packet(DRAM_CHANNEL::queue_type::iterator pkt)
                               pkt};
       pkt->value().scheduled = true;
       pkt->value().ready_time = champsim::chrono::clock::time_point::max();
+      handle_event<Event::DRAM_ISSUE>(**pkt);
 
       ++progress;
     }
@@ -450,14 +460,18 @@ void DRAM_CHANNEL::check_read_collision()
       // write forward
       if (auto wq_it = std::find_if(std::begin(WQ), std::end(WQ), checker); wq_it != std::end(WQ)) {
         for (auto& req : rq_it->value().reqs) {
-          req.to_return->emplace_back(req.address, req.v_address, wq_it->value().data, req.pf_metadata, req.token);
+          if (req.to_return) {
+            req.to_return->emplace_back(req.id, req.address, req.v_address, wq_it->value().data, req.pf_metadata, req.token);
+          }
         }
 
+        handle_event<Event::DRAM_COMPLETE>(**rq_it);
         rq_it->reset();
 
       }
       // backwards check
       else if (auto found = std::find_if(std::begin(RQ), rq_it, checker); found != rq_it) {
+        handle_event<Event::DRAM_MERGE>(**rq_it);
         found->value().reqs.insert(std::end(found->value().reqs), std::make_move_iterator(std::begin(rq_it->value().reqs)),
                                    std::make_move_iterator(std::end(rq_it->value().reqs)));
         rq_it->reset();
@@ -465,6 +479,7 @@ void DRAM_CHANNEL::check_read_collision()
       }
       // forwards check
       else if (found = std::find_if(std::next(rq_it), std::end(RQ), checker); found != std::end(RQ)) {
+        handle_event<Event::DRAM_MERGE>(**rq_it);
         found->value().reqs.insert(std::end(found->value().reqs), std::make_move_iterator(std::begin(rq_it->value().reqs)),
                                    std::make_move_iterator(std::end(rq_it->value().reqs)));
         rq_it->reset();
@@ -485,15 +500,16 @@ void MEMORY_CONTROLLER::initiate_requests()
     }
 
     // Initiate write requests
-    auto [wq_begin, wq_end] = champsim::get_span_p(std::begin(ul->WQ), std::end(ul->WQ), [this](auto& pkt) { return this->add_wq(pkt); });
+    auto [wq_begin, wq_end] = champsim::get_span_p(std::begin(ul->WQ), std::end(ul->WQ), [ul, this](auto& pkt) { return this->add_wq(pkt, ul); });
     ul->WQ.erase(wq_begin, wq_end);
   }
 }
 
-DRAM_CHANNEL::status_type::status_type(const typename champsim::channel::request_type& req) : address(req.address), data(req.data)
+DRAM_CHANNEL::status_type::status_type(const typename champsim::channel::request_type& req, champsim::channel* ul) : address(req.address), data(req.data)
 {
   asid[0] = req.asid[0];
   asid[1] = req.asid[1];
+  reqs.emplace_back(req, ul);
 }
 
 bool MEMORY_CONTROLLER::add_rq(const request_type& packet, champsim::channel* ul)
@@ -502,12 +518,11 @@ bool MEMORY_CONTROLLER::add_rq(const request_type& packet, champsim::channel* ul
 
   if (auto rq_it = std::find_if_not(std::begin(channel.RQ), std::end(channel.RQ), [this](const auto& pkt) { return pkt.has_value(); });
       rq_it != std::end(channel.RQ)) {
-    *rq_it = DRAM_CHANNEL::status_type{packet};
+    *rq_it = DRAM_CHANNEL::status_type{packet, ul};
     rq_it->value().forward_checked = false;
     rq_it->value().scheduled = false;
     rq_it->value().ready_time = current_time;
-    if (packet.response_requested)
-      rq_it->value().reqs.push_back({packet.pf_metadata, packet.address, packet.v_address, packet.data, packet.token, &ul->returned});
+    handle_event<Event::DRAM_DISPATCH>(**rq_it);
 
     return true;
   }
@@ -515,17 +530,18 @@ bool MEMORY_CONTROLLER::add_rq(const request_type& packet, champsim::channel* ul
   return false;
 }
 
-bool MEMORY_CONTROLLER::add_wq(const request_type& packet)
+bool MEMORY_CONTROLLER::add_wq(const request_type& packet, champsim::channel* ul)
 {
   auto& channel = channels[address_mapping.get_channel(packet.address)];
 
   // search for the empty index
   if (auto wq_it = std::find_if_not(std::begin(channel.WQ), std::end(channel.WQ), [](const auto& pkt) { return pkt.has_value(); });
       wq_it != std::end(channel.WQ)) {
-    *wq_it = DRAM_CHANNEL::status_type{packet};
+    *wq_it = DRAM_CHANNEL::status_type{packet, ul};
     wq_it->value().forward_checked = false;
     wq_it->value().scheduled = false;
     wq_it->value().ready_time = current_time;
+    handle_event<Event::DRAM_DISPATCH>(**wq_it);
 
     return true;
   }
