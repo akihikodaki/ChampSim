@@ -78,11 +78,11 @@ inline void handle_event<Event::RETIRE>(Heartbeat* hb, uint32_t& cpu, std::deque
 
   if (hb->num_retired[cpu] >= hb->num_retired_last_printout[cpu] + hb->cycles_between_printouts) {
 
-    double heartbeat_instr = hb->num_retired[cpu] - hb->num_retired_last_printout[cpu];
-    double heartbeat_cycle = current_cycles - hb->cycles_last_printout[cpu];
+    auto heartbeat_instr = static_cast<double>(hb->num_retired[cpu] - hb->num_retired_last_printout[cpu]);
+    auto heartbeat_cycle = static_cast<double>(current_cycles - hb->cycles_last_printout[cpu]);
 
-    double phase_instr = hb->num_retired[cpu] - hb->num_retired_start_phase[cpu];
-    double phase_cycle = current_cycles - hb->cycles_start_phase[cpu];
+    auto phase_instr = static_cast<double>(hb->num_retired[cpu] - hb->num_retired_start_phase[cpu]);
+    auto phase_cycle = static_cast<double>(current_cycles - hb->cycles_start_phase[cpu]);
 
     fmt::print(*(hb->std_out),
                "Heartbeat CPU {} instructions: {} cycles: {} heartbeat IPC: {:.4} cumulative IPC: {:.4} (Simulation time: {:%H hr %M min %S sec})\n", cpu,
