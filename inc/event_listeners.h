@@ -49,11 +49,16 @@ void handle_listener_event(Args&... args)
   }
 }
 
+template <Event e, typename... Args, std::size_t... Is>
+void handle_event(std::index_sequence<Is...>, Args&... args)
+{
+  (handle_listener_event<e, Is>(args...), ...);
+}
+
 template <Event e, typename... Args>
 void handle_event(Args&... args)
 {
-  [&]<std::size_t... Is>(std::index_sequence<Is...>) { (handle_listener_event<e, Is>(args...), ...); }
-  (std::make_index_sequence<std::tuple_size_v<decltype(listeners)>>{}); // immediately invoked
+  handle_event<e>(std::make_index_sequence<std::tuple_size_v<decltype(listeners)>>{}, args...);
 }
 
 #endif
